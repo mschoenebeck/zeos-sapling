@@ -1,0 +1,59 @@
+[package]
+name = "zeos_proofs"
+description = "Zeos zk-SNARK circuits and proving APIs based on Zcashs zcash_proofs"
+version = "0.1.0"
+authors = [
+    "Jack Grigg <jack@z.cash>",
+    "Matthias Schönebeck <matthias.schoenebeck@gmail.com>"
+]
+#homepage = "https://github.com/zcash/librustzcash"
+#repository = "https://github.com/zcash/librustzcash"
+#readme = "README.md"
+#license = "MIT OR Apache-2.0"
+edition = "2018"
+
+#[package.metadata.docs.rs]
+#all-features = true
+
+[dependencies]
+bellman = { version = "0.10.0", default-features = false, features = ["groth16"], path = "../bellman" }
+blake2b_simd = "0.5"
+bls12_381 = { version = "0.5" }
+byteorder = "1"
+directories = { version = "3", optional = true }
+ff = { version = "0.10.1" }
+group = { version = "0.10" }
+jubjub = "0.7"
+lazy_static = "1"
+minreq = { version = "2", features = ["https"], optional = true }
+rand_core = "0.6"
+wagyu-zcash-parameters = { version = "0.2", optional = true }
+serde = { version = "1.0.130", features = ["derive"] }
+serde_json = "1.0.67"
+
+#[dev-dependencies]
+#criterion = "0.3"
+#rand_xorshift = "0.3"
+
+#[features]
+#default = ["local-prover", "multicore"]
+#bundled-prover = ["wagyu-zcash-parameters"]
+#download-params = ["minreq"]
+#local-prover = ["directories"]
+#multicore = ["bellman/multicore"]
+
+#[[bench]]
+#name = "sapling"
+#harness = false
+#required-features = ["local-prover"]
+
+#[[example]]
+#name = "get-params-path"
+#required-features = ["directories"]
+
+#[[example]]
+#name = "download-params"
+#required-features = ["download-params"]
+
+#[badges]
+#maintenance = { status = "actively-developed" }
