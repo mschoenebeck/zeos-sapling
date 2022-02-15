@@ -65,9 +65,9 @@ impl Circuit<bls12_381::Scalar> for Mint
         note.extend(h_sk_bits.clone());
 
         // calculate hash value: h(note)
-        let z = blake2s::blake2s(cs.namespace(|| "blake2s(note)"), &note, b"Shaftoes")?;
+        let z = blake2s::blake2s(cs.namespace(|| "blake2s(note)"), &note, &[0; 8])?;
         
-        // // expose public inputs: amount, symbol, z
+        // expose public inputs: amount, symbol, z
         let mut inputs = vec![];
         inputs.extend(amount_bits);
         inputs.extend(symbol_bits);
@@ -146,7 +146,7 @@ impl Circuit<bls12_381::Scalar> for Transfer
         note_a.extend(rho_a_bits.clone());
         note_a.extend(h_sk_a_bits.clone());
         // boolean bit vector Z_a := h(a | h_sk_a | rho_a)
-        let z_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(a | h_sk_a | rho_a)"), &note_a, b"Shaftoes")?;
+        let z_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(a | h_sk_a | rho_a)"), &note_a, &[0; 8])?;
 
         // calculate the note commitment Z_b of value 'b' which is defined as: Z_b := h(b | h_sk_b | rho_b)
         // 'b' to boolean bit vector
@@ -171,7 +171,7 @@ impl Circuit<bls12_381::Scalar> for Transfer
         note_b.extend(rho_b_bits.clone());
         note_b.extend(h_sk_b_bits.clone());
         // boolean bit vector Z_b := h(b | h_sk_b | rho_b)
-        let z_b_bits = blake2s::blake2s(cs.namespace(|| "blake2s(b | h_sk_b | rho_b)"), &note_b, b"Shaftoes")?;
+        let z_b_bits = blake2s::blake2s(cs.namespace(|| "blake2s(b | h_sk_b | rho_b)"), &note_b, &[0; 8])?;
 
         // calculate the note commitment Z_c of value 'c' which is defined as: Z_c := h(c | h_sk_a | rho_c)
         // 'c' to boolean bit vector
@@ -191,7 +191,7 @@ impl Circuit<bls12_381::Scalar> for Transfer
         note_c.extend(rho_c_bits.clone());
         note_c.extend(h_sk_a_bits.clone());
         // boolean bit vector Z_c := h(c | h_sk_a | rho_c)
-        let z_c_bits = blake2s::blake2s(cs.namespace(|| "blake2s(c | h_sk_a | rho_c)"), &note_c, b"Shaftoes")?;
+        let z_c_bits = blake2s::blake2s(cs.namespace(|| "blake2s(c | h_sk_a | rho_c)"), &note_c, &[0; 8])?;
 
         // calculate the nullifier N_a of value 'a' which is defined as: N_a := h(rho_a | sk_a)
         // concatenate (rho_a | sk_a) for input to hash function
@@ -199,7 +199,7 @@ impl Circuit<bls12_381::Scalar> for Transfer
         nf_a.extend(rho_a_bits.clone());
         nf_a.extend(sk_a_bits.clone());
         // boolean bit vector N_a := h(rho_a | sk_a)
-        let nf_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(rho_a | sk_a)"), &nf_a, b"Shaftoes")?;
+        let nf_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(rho_a | sk_a)"), &nf_a, &[0; 8])?;
 
         // calculate merkle tree root rt_M using the authenticator path
         // Witness into the merkle tree
@@ -231,7 +231,7 @@ impl Circuit<bls12_381::Scalar> for Transfer
             )?;
 
             // calculate hash of parent node and set as new current subtree
-            cur = blake2s::blake2s(cs.namespace(|| "blake2s(lhs | rhs)"), &preimage, b"Shaftoes")?;
+            cur = blake2s::blake2s(cs.namespace(|| "blake2s(lhs | rhs)"), &preimage, &[0; 8])?;
         }
 
         // enforce a = b + c
@@ -299,7 +299,7 @@ impl Circuit<bls12_381::Scalar> for Burn
             self.sk_a,
         )?;
         // boolean bit vector h_sk_a := h(sk_a)
-        let h_sk_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(sk_a)"), &sk_a_bits, b"Shaftoes")?;
+        let h_sk_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(sk_a)"), &sk_a_bits, &[0; 8])?;
 
         // symbol to boolean bit vector
         let symbol_bits = boolean::u64_into_boolean_vec_le(
@@ -325,7 +325,7 @@ impl Circuit<bls12_381::Scalar> for Burn
         note_a.extend(rho_a_bits.clone());
         note_a.extend(h_sk_a_bits.clone());
         // boolean bit vector Z_a := h(a | h_sk_a | rho_a)
-        let z_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(a | h_sk_a | rho_a)"), &note_a, b"Shaftoes")?;
+        let z_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(a | h_sk_a | rho_a)"), &note_a, &[0; 8])?;
 
         // calculate the bit vector of value 'b' to expose it as public input
         // 'b' to boolean bit vector
@@ -352,7 +352,7 @@ impl Circuit<bls12_381::Scalar> for Burn
         note_c.extend(rho_c_bits.clone());
         note_c.extend(h_sk_a_bits.clone());
         // boolean bit vector Z_b := h(b | pk_b | rho_b)
-        let z_c_bits = blake2s::blake2s(cs.namespace(|| "blake2s(c | h_sk_a | rho_c)"), &note_c, b"Shaftoes")?;
+        let z_c_bits = blake2s::blake2s(cs.namespace(|| "blake2s(c | h_sk_a | rho_c)"), &note_c, &[0; 8])?;
 
         // calculate the nullifier N_a of value 'a' which is defined as: N_a := h(rho_a | sk_a)
         // concatenate (rho_a | sk_a) for input to hash function
@@ -360,7 +360,7 @@ impl Circuit<bls12_381::Scalar> for Burn
         nf_a.extend(rho_a_bits.clone());
         nf_a.extend(sk_a_bits.clone());
         // boolean bit vector nf_a := h(rho_a | sk_a)
-        let nf_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(rho_a | sk_a)"), &nf_a, b"Shaftoes")?;
+        let nf_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(rho_a | sk_a)"), &nf_a, &[0; 8])?;
 
         // calculate merkle tree root rt_M using the authenticator path
         // Witness into the merkle tree
@@ -392,7 +392,7 @@ impl Circuit<bls12_381::Scalar> for Burn
             )?;
 
             // calculate hash of parent node and set as new current subtree
-            cur = blake2s::blake2s(cs.namespace(|| "blake2s(lhs | rhs)"), &preimage, b"Shaftoes")?;
+            cur = blake2s::blake2s(cs.namespace(|| "blake2s(lhs | rhs)"), &preimage, &[0; 8])?;
         }
 
         // enforce a = b + c
