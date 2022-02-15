@@ -17,6 +17,7 @@ use bellman::{
 };
 
 use zeos_proofs::circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
+use rustzeos::to_json;
 
 use bls12_381::Bls12;
 use ff::PrimeField;
@@ -35,7 +36,7 @@ fn main()
 {
     
     // generate random params
-    println!("Create parameters for our circuit. In a production deployment these would be generated securely using a multiparty computation.");
+    //println!("Create parameters for our circuit. In a production deployment these would be generated securely using a multiparty computation.");
     /*
     // Mint circuit
     let params = {
@@ -66,7 +67,7 @@ fn main()
         groth16::generate_random_parameters::<Bls12, _, _>(c, &mut OsRng).unwrap()
     };
     */
-    
+    /*
     // Burn circuit
     let params = {
         let c = Burn {
@@ -81,52 +82,27 @@ fn main()
         };
         groth16::generate_random_parameters::<Bls12, _, _>(c, &mut OsRng).unwrap()
     };
-    
-    
+    */
     /*
     // write params to file
     let params_file = File::create("params").unwrap();
     let mut params_file = BufWriter::with_capacity(1024 * 1024, params_file);
     params.write(&mut params_file).unwrap();
     */
-    /*
+    
     // read params from file
-    let params_file = File::open("params").expect("couldn't open `./params`");
+    let params_file = File::open("mint.params").expect("couldn't open params file");
     let reader = BufReader::with_capacity(1024*1024, params_file);
-    let mut params: groth16::Parameters<Bls12> = Parameters::read(reader, false).unwrap();
-    */
-    
-    /*
-    // write vk to file
-    let vk_file = File::create("vk").unwrap();
-    let mut vk_file = BufWriter::with_capacity(1024 * 1024, vk_file);
-    params.vk.write(&mut vk_file).unwrap();
-    */
-    /*
-    // read vk from file
-    let vk_file = File::open("vk").expect("couldn't open `./vk`");
-    let reader = BufReader::with_capacity(1024*1024, vk_file);
-    let vk: groth16::VerifyingKey<Bls12> = VerifyingKey::read(reader).unwrap();
-    */
-    /*
-    // write vk as base64 string to file
-    let json = serde_json::to_string(&vk).unwrap();
-    let base64str = base64::encode(&json);
-    fs::write("vk.txt", base64str).expect("Unable to write file");
-    */
-    /*
-    // read vk as base64 string from file
-    let base64str = fs::read_to_string("vk.txt").expect("Unable to read file");
-    let json = String::from_utf8(base64::decode(base64str).unwrap()).unwrap();
-    let vk: groth16::VerifyingKey<Bls12> = serde_json::from_str(&json).unwrap();
-    //println!("vk = {:?}", vk);
-    */
-    
-    println!("Prepare the verification key (for proof verification).");
-    let pvk = groth16::prepare_verifying_key(/*&vk*/&params.vk);
-    //println!("pvk = {:?}", pvk);
+    let params: groth16::Parameters<Bls12> = Parameters::read(reader, false).unwrap();
 
-    /*
+
+    // print vk as json
+    println!("{}", to_json(&params.vk));
+
+    println!("Prepare the verification key (for proof verification).");
+    let pvk = groth16::prepare_verifying_key(&params.vk);
+
+    
     println!("Pick test values for Mint circuit.");
     let amount: u64 = 10;
     let symbol: u64 = 123456789;
@@ -138,7 +114,7 @@ fn main()
     note.extend(rho.clone());
     note.extend(h_sk.clone());
     let z = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&note)
         .finalize();
@@ -150,14 +126,14 @@ fn main()
         rho: Some(rho),
         h_sk: Some(h_sk)
     };
-    */
+    
     /*
     println!("Pick test values for Transfer circuit.");
     let sk_a: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let mut image = Vec::new();
     image.extend(sk_a.clone());
     let h_sk_a = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&image)
         .finalize();
@@ -176,7 +152,7 @@ fn main()
     note_a.extend(rho_a.clone());
     note_a.extend(h_sk_a.as_array().clone());
     let z_a = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&note_a)
         .finalize();
@@ -187,7 +163,7 @@ fn main()
     note_b.extend(rho_b.clone());
     note_b.extend(h_sk_b.clone());
     let z_b = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&note_b)
         .finalize();
@@ -198,7 +174,7 @@ fn main()
     note_c.extend(rho_c.clone());
     note_c.extend(h_sk_a.as_array().clone());
     let z_c = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&note_c)
         .finalize();
@@ -207,7 +183,7 @@ fn main()
     nf.extend(rho_a.clone());
     nf.extend(sk_a.clone());
     let nf_a = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&nf)
         .finalize();
@@ -223,7 +199,7 @@ fn main()
     image.extend(x.clone());
     image.extend(z_a.as_array().clone());
     let l1 = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&image)
         .finalize();
@@ -232,7 +208,7 @@ fn main()
     image.extend(l1.as_array().clone());
     image.extend([0; 32]);
     let rt = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&image)
         .finalize();
@@ -253,13 +229,13 @@ fn main()
         auth_path: auth_path
     };
     */
-    
+    /*
     println!("Pick test values for Burn circuit.");
     let sk_a: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let mut image = Vec::new();
     image.extend(sk_a.clone());
     let h_sk_a = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&image)
         .finalize();
@@ -276,7 +252,7 @@ fn main()
     note_a.extend(rho_a.clone());
     note_a.extend(h_sk_a.as_array().clone());
     let z_a = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&note_a)
         .finalize();
@@ -287,7 +263,7 @@ fn main()
     note_c.extend(rho_c.clone());
     note_c.extend(h_sk_a.as_array().clone());
     let z_c = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&note_c)
         .finalize();
@@ -296,7 +272,7 @@ fn main()
     nf.extend(rho_a.clone());
     nf.extend(sk_a.clone());
     let nf_a = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&nf)
         .finalize();
@@ -312,7 +288,7 @@ fn main()
     image.extend(x.clone());
     image.extend(z_a.as_array().clone());
     let l1 = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&image)
         .finalize();
@@ -321,7 +297,7 @@ fn main()
     image.extend(l1.as_array().clone());
     image.extend([0; 32]);
     let rt = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
+        .personal(&[0; 8])
         .to_state()
         .update(&image)
         .finalize();
@@ -339,37 +315,14 @@ fn main()
         rho_c: Some(rho_c),
         auth_path: auth_path
     };
-    
+    */
     
     println!("Create a Groth16 proof with our parameters.");
     let proof = groth16::create_random_proof(c, &params, &mut OsRng).unwrap();
     
-    /*
-    // write proof to file
-    let proof_file = File::create("proof").unwrap();
-    let mut proof_file = BufWriter::with_capacity(1024 * 1024, proof_file);
-    proof.write(&mut proof_file).unwrap();
-    */
-    /*
-    // read proof from file
-    let proof_file = File::open("proof").expect("couldn't open `./proof`");
-    let reader = BufReader::with_capacity(1024*1024, proof_file);
-    let proof = Proof::read(reader).unwrap();
-    */
-    /*
-    // write proof as base64 string to file
-    let json = serde_json::to_string(&proof).unwrap();
-    let base64str = base64::encode(&json);
-    fs::write("proof.txt", base64str).expect("Unable to write file");
-    */
-    /*
-    // read proof as base64 string from file
-    let base64str = fs::read_to_string("proof.txt").expect("Unable to read file");
-    let json = String::from_utf8(base64::decode(base64str).unwrap()).unwrap();
-    let proof: groth16::Proof<Bls12> = serde_json::from_str(&json).unwrap();
-    //println!("proof = {:?}", proof);
-    */
-    /*
+    // print proof as json
+    println!("{}", to_json(&proof));
+
     // Mint Circuit
     println!("Pack the amount, symbol and note commitment as inputs for proof verification.");
     let mut input_bits = Vec::new();
@@ -380,7 +333,7 @@ fn main()
     input_bits.extend(symbol_bits);
     input_bits.extend(z_bits);
     let inputs = multipack::compute_multipacking(&input_bits);
-    */
+    
     /*
     // Transfer Circuit
     println!("Pack the hash as inputs for proof verification.");
@@ -395,7 +348,7 @@ fn main()
     input_bits.extend(rt_bits.clone());
     let inputs = multipack::compute_multipacking(&input_bits);
     */
-    
+    /*
     // Burn Circuit
     println!("Pack the hash as inputs for proof verification.");
     let nf_a_bits = multipack::bytes_to_bits_le(nf_a.as_array());
@@ -410,21 +363,11 @@ fn main()
     input_bits.extend(z_c_bits.clone());
     input_bits.extend(rt_bits.clone());
     let inputs = multipack::compute_multipacking(&input_bits);
-    
+    */
 
-    /*
-    // write inputs as base64 string to file
-    let json = serde_json::to_string(&inputs).unwrap();
-    let base64str = base64::encode(&json);
-    fs::write("inputs.txt", base64str).expect("Unable to write file");
-    */
-    /*
-    // read inputs as base64 string from file
-    let base64str = fs::read_to_string("inputs.txt").expect("Unable to read file");
-    let json = String::from_utf8(base64::decode(base64str).unwrap()).unwrap();
-    let inputs: Vec<bls12_381::scalar::Scalar> = serde_json::from_str(&json).unwrap();
-    //println!("inputs = {:?}", inputs);
-    */
+    // print inputs as json
+    println!("{}", to_json(&inputs));
+
     println!("Check the proof!");
     assert!(groth16::verify_proof(&pvk, &proof, &inputs).is_ok());
 }
