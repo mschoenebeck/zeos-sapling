@@ -120,7 +120,7 @@ impl Circuit<bls12_381::Scalar> for Transfer
             self.sk_a,
         )?;
         // boolean bit vector h_sk_a := h(sk_a)
-        let h_sk_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(sk_a)"), &sk_a_bits, b"Shaftoes")?;
+        let h_sk_a_bits = blake2s::blake2s(cs.namespace(|| "blake2s(sk_a)"), &sk_a_bits, &[0; 8])?;
 
         // symbol to boolean bit vector
         let symbol_bits = boolean::u64_into_boolean_vec_le(
