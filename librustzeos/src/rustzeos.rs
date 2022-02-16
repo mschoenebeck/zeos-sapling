@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::fmt::Write;
 
 use zeos_proofs::circuit::zeos::{NoteValue, Transfer};
@@ -155,23 +156,22 @@ impl Symbol
     }
 }
 
-// This represents a note. 
+// This represents an EOSIO asset. 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Note
+pub struct Asset
 {
-    amount: u64,
-    symbol: Symbol,
-    rho: [u8; 32]
+    amount: i64,
+    symbol: Symbol
 }
 
-impl Note
+impl Asset
 {
-    pub fn new(amount: u64, symbol: Symbol, rho: [u8; 32]) -> Note
+    pub fn new(amount: i64, symbol: Symbol) -> Asset
     {
-        return Note{amount, symbol, rho};
+        return Asset{amount, symbol};
     }
 
-    pub fn amount(&self) -> u64
+    pub fn amount(&self) -> i64
     {
         return self.amount;
     }
@@ -179,6 +179,47 @@ impl Note
     pub fn symbol(&self) -> &Symbol
     {
         return &self.symbol;
+    }
+
+    pub fn to_string(&self) -> String
+    {
+        let sign = if self.amount < 0 { "-" } else { "" };
+        let abs_amount: u64 = self.amount.abs().try_into().unwrap();
+        let mut result = (abs_amount / self.symbol.precision()).to_string();
+        if self.symbol.decimals() > 0
+        {
+            let fract = abs_amount % self.symbol.precision();
+            let mut str = (self.symbol.precision() + fract).to_string();
+            str.remove(0);
+            result += &(".".to_owned() + &str);
+        }
+        return sign.to_owned() + &result + " " + &self.symbol.name();
+    }
+}
+
+// This represents a note. 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Note
+{
+    quantity: Asset,
+    rho: [u8; 32]
+}
+
+impl Note
+{
+    pub fn new(quantity: Asset, rho: [u8; 32]) -> Note
+    {
+        return Note{quantity, rho};
+    }
+
+    pub fn amount(&self) -> i64
+    {
+        return self.quantity.amount();
+    }
+
+    pub fn symbol(&self) -> &Symbol
+    {
+        return &self.quantity.symbol();
     }
 
     pub fn rho(&self) -> [u8; 32]
@@ -189,12 +230,12 @@ impl Note
     pub fn commitment(&self, h_sk: [u8; 32]) -> Hash
     {
         let mut note = Vec::new();
-        note.extend(self.amount.to_le_bytes());
-        note.extend(self.symbol.0.to_le_bytes());
+        note.extend(self.quantity.amount.to_le_bytes());
+        note.extend(self.quantity.symbol.0.to_le_bytes());
         note.extend(self.rho);
         note.extend(h_sk);
         let commitment = blake2s_simd_params::new()
-            .personal(b"Shaftoes")
+            .personal(&[0; 8])
             .to_state()
             .update(&note)
             .finalize();
@@ -207,7 +248,7 @@ impl Note
         nf.extend(self.rho);
         nf.extend(sk);
         let nullifier = blake2s_simd_params::new()
-            .personal(b"Shaftoes")
+            .personal(&[0; 8])
             .to_state()
             .update(&nf)
             .finalize();
@@ -464,6 +505,12 @@ pub fn to_json<T>(var: &T) -> String
             {
                 json.push_str(format!("{:02x}", byte).as_str());
             }
+        },
+        "rustzeos::Asset" =>
+        {
+            let a: &Asset = unsafe {&*(var as *const T as *const Asset)};
+            
+            json.push_str(format!("{}", a.to_string()).as_str());
         },
         _ =>
         {

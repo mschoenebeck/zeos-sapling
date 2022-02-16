@@ -13,11 +13,11 @@ use bellman::{
         VerifyingKey,
         Proof
     },
-    groth16, Circuit, ConstraintSystem, SynthesisError,
+    groth16, Circuit, ConstraintSystem, SynthesisError, multiexp::SourceBuilder,
 };
 
 use zeos_proofs::circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
-use rustzeos::{to_json, Note};
+use rustzeos::{to_json, Symbol, Asset};
 
 use bls12_381::Bls12;
 use ff::PrimeField;
@@ -379,4 +379,7 @@ fn main()
     
     println!("{:?}", t);
     println!("{}", to_json(&t));
+
+    let a = Asset::new(100010, Symbol::new(4, "ZEOS".to_string()));
+    println!("{}", to_json(&a));
 }
