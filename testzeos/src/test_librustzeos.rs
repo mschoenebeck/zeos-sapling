@@ -11,7 +11,7 @@ use rand::rngs::OsRng as OsRng2;
 use blake2s_simd::{Hash, blake2s as blake2s_simd, Params as blake2s_simd_params};
 
 extern crate rustzeos;
-use rustzeos::{KeyPair, Symbol, Note, to_json};
+use rustzeos::{KeyPair, Symbol, Asset, Note, to_json};
 
 use bellman::{gadgets::{multipack}, groth16::{VerifyingKey, Proof}, groth16};
 use bls12_381::Bls12;
@@ -64,7 +64,7 @@ fn main()
     println!("s.name = {}", s.name());
 
     // test note stuff
-    let note = Note::new(10, Symbol::new(4, "ZEOS".to_string()), [42; 32]);
+    let note = Note::new(Asset::new(10, Symbol::new(4, "ZEOS".to_string())), [42; 32]);
     println!("note.amount = {}", note.amount());
     println!("note.symbol = {}", note.symbol().name());
     println!("note.rho = {:?}", note.rho());
