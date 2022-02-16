@@ -17,7 +17,7 @@ use bellman::{
 };
 
 use zeos_proofs::circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
-use rustzeos::to_json;
+use rustzeos::{to_json, Note};
 
 use bls12_381::Bls12;
 use ff::PrimeField;
@@ -370,4 +370,13 @@ fn main()
 
     println!("Check the proof!");
     assert!(groth16::verify_proof(&pvk, &proof, &inputs).is_ok());
+
+    let t = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(b"hello world")
+        .finalize();
+    
+    println!("{:?}", t);
+    println!("{}", to_json(&t));
 }

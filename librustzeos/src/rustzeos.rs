@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use zeos_proofs::circuit::zeos::{NoteValue, Transfer};
 
 use serde::{Serialize, Deserialize};
@@ -24,7 +26,6 @@ fn type_of<T>(_: &T) -> &'static str
 
 use bellman::{groth16::{VerifyingKey, Proof}, groth16};
 use bls12_381::{Bls12};
-
 
 //extern crate libc;
 //use libc::{c_char, puts};
@@ -454,6 +455,15 @@ pub fn to_json<T>(var: &T) -> String
             json.push_str(format!("{}", c.0).as_str());
             
             json.push('}');
+        },
+        "blake2s_simd::Hash" =>
+        {
+            let h: &Hash = unsafe {&*(var as *const T as *const Hash)};
+            
+            for byte in h.as_array().iter().rev()
+            {
+                json.push_str(format!("{:02x}", byte).as_str());
+            }
         },
         _ =>
         {

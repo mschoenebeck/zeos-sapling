@@ -57,8 +57,8 @@ fn main()
     println!("kp2.addr: {:02x?}", arr);
 
     // test Symbol stuff
-    let s = Symbol::new(4, "PEOS".to_string());
-    println!("s.value = {:x}", s.value());
+    let s = Symbol::new(4, "ZEOS".to_string());
+    println!("s.value = {}", s.value());
     println!("s.decimals = {}", s.decimals());
     println!("s.precision = {}", s.precision());
     println!("s.name = {}", s.name());
@@ -96,8 +96,8 @@ fn main()
     let pvk = groth16::prepare_verifying_key(&params.vk);
 
     println!("Pick test values for Mint circuit.");
-    let amount: u64 = 10;
-    let symbol: u64 = 123456789;
+    let amount: u64 = 100000;
+    let symbol: u64 = 357812230660;
     let rho: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let h_sk: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let mut note = Vec::new();
@@ -110,6 +110,7 @@ fn main()
         .to_state()
         .update(&note)
         .finalize();
+    println!("z = {:?}", z);
 
     println!("Create an instance of Mint circuit (with the test values as witnesses).");
     let c = Mint {

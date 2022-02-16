@@ -23,6 +23,9 @@ use rand::rngs::OsRng;
 
 use blake2s_simd::{blake2s as blake2s_simd, Params as blake2s_simd_params};
 
+extern crate rustzeos;
+use rustzeos::{KeyPair, Symbol, Note, to_json};
+
 use std::fs;
 use std::any::type_name;
 fn print_type_of<T>(_: &T) {
@@ -100,14 +103,14 @@ use std::io::{BufWriter, BufReader};
 
 fn main()
 {
-    
+/*    
     // generate random params
     println!("Create parameters for our circuit. In a production deployment these would be generated securely using a multiparty computation.");
     let params = {
         let c = MyCircuit { preimage: None };
         groth16::generate_random_parameters::<Bls12, _, _>(c, &mut OsRng).unwrap()
     };
-    
+*/    
     
     /*
     // write params to file
@@ -146,11 +149,11 @@ fn main()
     //let json = String::from_utf8(base64::decode(base64str).unwrap()).unwrap();
     //let vk: groth16::VerifyingKey<Bls12> = serde_json::from_str(&json).unwrap();
     //println!("vk = {:?}", vk);
-    
+/*    
     println!("Prepare the verification key (for proof verification).");
     let pvk = groth16::prepare_verifying_key(&params.vk);
     //println!("pvk = {:?}", pvk);
-
+*/
     
     println!("Pick a preimage and compute its hash.");
     let preimage = [42; 80];
@@ -159,16 +162,17 @@ fn main()
         .to_state()
         .update(&preimage)
         .finalize();
+    println!("{:?}", hash);
 
     println!("Create an instance of our circuit (with the preimage as a witness).");
     let c = MyCircuit {
         preimage: Some(preimage),
     };
     
-    
+/*    
     println!("Create a Groth16 proof with our parameters.");
     let proof = groth16::create_random_proof(c, &params, &mut OsRng).unwrap();
-    
+*/    
     /*
     // write proof to file
     let proof_file = File::create("proof").unwrap();
@@ -196,7 +200,7 @@ fn main()
     
     println!("Pack the hash as inputs for proof verification.");
     let hash_bits = multipack::bytes_to_bits_le(&decode_hex(&hash.to_hex()).unwrap());
-    let inputs = multipack::compute_multipacking(&hash_bits);
+    let inputs: Vec<bls12_381::Scalar> = multipack::compute_multipacking(&hash_bits);
 
     /*
     // write inputs as base64 string to file
@@ -207,7 +211,7 @@ fn main()
     
     // read inputs as base64 string from file
     //let base64str = fs::read_to_string("inputs.txt").expect("Unable to read file");
-    //let json = String::from_utf8(base64::decode(base64str).unwrap()).unwrap();
+    //let json = String::from_utf8(base64::decScalarode(base64str).unwrap()).unwrap();
     //let inputs: Vec<bls12_381::scalar::Scalar> = serde_json::from_str(&json).unwrap();
     //println!("inputs = {:?}", inputs);
 
@@ -216,6 +220,10 @@ fn main()
     //let base64str = base64::encode(&json);
     //fs::write("inputs_json_test.txt", json).expect("Unable to write file");
 
+//    println!("{:?}", rustzeos::to_json(&params.vk));
+//    println!("{:?}", rustzeos::to_json(&proof));
+    println!("{:?}", rustzeos::to_json(&inputs));
+
     println!("Check the proof!");
-    assert!(groth16::verify_proof(&pvk, &proof, &inputs).is_ok());
+//    assert!(groth16::verify_proof(&pvk, &proof, &inputs).is_ok());
 }
