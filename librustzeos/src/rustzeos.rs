@@ -339,21 +339,27 @@ pub fn to_json<T>(var: &T) -> String
                
             json.push_str("\"alpha_g1\":");
             json.push_str(to_json(&vk.alpha_g1).as_str());
+            json.push(',');
                
             json.push_str("\"beta_g1\":");
             json.push_str(to_json(&vk.beta_g1).as_str());
+            json.push(',');
                
             json.push_str("\"beta_g2\":");
             json.push_str(to_json(&vk.beta_g2).as_str());
+            json.push(',');
                
             json.push_str("\"gamma_g2\":");
             json.push_str(to_json(&vk.gamma_g2).as_str());
+            json.push(',');
                
             json.push_str("\"delta_g1\":");
             json.push_str(to_json(&vk.delta_g1).as_str());
+            json.push(',');
                
             json.push_str("\"delta_g2\":");
             json.push_str(to_json(&vk.delta_g2).as_str());
+            json.push(',');
                
             json.push_str("\"ic\":");
             json.push_str(to_json(&vk.ic).as_str());
@@ -368,9 +374,11 @@ pub fn to_json<T>(var: &T) -> String
                
             json.push_str("\"a\":");
             json.push_str(to_json(&proof.a).as_str());
+            json.push(',');
                
             json.push_str("\"b\":");
             json.push_str(to_json(&proof.b).as_str());
+            json.push(',');
                
             json.push_str("\"c\":");
             json.push_str(to_json(&proof.c).as_str());
@@ -386,9 +394,11 @@ pub fn to_json<T>(var: &T) -> String
                
             json.push_str("\"x\":");
             json.push_str(to_json(&g1.x).as_str());
+            json.push(',');
                
             json.push_str("\"y\":");
             json.push_str(to_json(&g1.y).as_str());
+            json.push(',');
                
             json.push_str("\"infinity\":");
             json.push_str(to_json(&g1.infinity).as_str());
@@ -404,9 +414,11 @@ pub fn to_json<T>(var: &T) -> String
                
             json.push_str("\"x\":");
             json.push_str(to_json(&g2.x).as_str());
+            json.push(',');
                
             json.push_str("\"y\":");
             json.push_str(to_json(&g2.y).as_str());
+            json.push(',');
                
             json.push_str("\"infinity\":");
             json.push_str(to_json(&g2.infinity).as_str());
@@ -481,6 +493,7 @@ pub fn to_json<T>(var: &T) -> String
                
             json.push_str("\"c0\":");
             json.push_str(to_json(&fp2.c0).as_str());
+            json.push(',');
                
             json.push_str("\"c1\":");
             json.push_str(to_json(&fp2.c1).as_str());
