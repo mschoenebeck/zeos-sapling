@@ -11,7 +11,7 @@ use rand::rngs::OsRng as OsRng2;
 use blake2s_simd::{Hash, blake2s as blake2s_simd, Params as blake2s_simd_params};
 
 extern crate rustzeos;
-use rustzeos::{KeyPair, Symbol, Asset, Note, to_json};
+use rustzeos::{SecretKey, Symbol, Asset, Note, to_json};
 
 use bellman::{gadgets::{multipack}, groth16::{VerifyingKey, Proof}, groth16};
 use bls12_381::Bls12;
@@ -41,12 +41,17 @@ fn main()
 
     let rnd: [u8; 32] = rand::random();
     println!("rnd = {:02x?}", rnd);
-    let kp2 = KeyPair::new(rnd);
+    let kp2 = SecretKey::new(rnd);
     println!("kp2 = {:02x?}", kp2.sk());
     println!("rnd = {:02x?}", rnd);
 
     let mut arr: [u8; 64] = [0; 64];
-    kp2.write_addr(&mut arr);
+    //kp2.write_addr(&mut arr);
+
+    let ass = Asset::from("10.0000 ZEOS");
+    println!("{}", ass.to_string());
+    println!("{}", ass.symbol().decimals());
+    println!("{}", ass.symbol().value());
 
     println!("kp.sk: {:02x?}", alice_secret_scalar.to_bytes());
     println!("kp2.sk: {:02x?}", kp2.sk());

@@ -24,7 +24,7 @@ use rand::rngs::OsRng;
 use blake2s_simd::{blake2s as blake2s_simd, Params as blake2s_simd_params};
 
 extern crate rustzeos;
-use rustzeos::{KeyPair, Symbol, Note, to_json};
+use rustzeos::{SecretKey, Symbol, Note, to_json};
 
 use std::fs;
 use std::any::type_name;

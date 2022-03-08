@@ -29,7 +29,7 @@ use blake2s_simd::{blake2s as blake2s_simd, Params as blake2s_simd_params};
 
 
 
-use std::fs::File;
+use std::{fs::File, convert::TryInto, io::Read};
 use std::io::{BufWriter, BufReader};
 
 fn main()
@@ -91,23 +91,25 @@ fn main()
     */
     
     // read params from file
-    let params_file = File::open("mint.params").expect("couldn't open params file");
+    let params_file = File::open("burn.params").expect("couldn't open params file");
     let reader = BufReader::with_capacity(1024*1024, params_file);
     let params: groth16::Parameters<Bls12> = Parameters::read(reader, false).unwrap();
 
 
-    // print vk as json
-    println!("{}", to_json(&params.vk));
-
     println!("Prepare the verification key (for proof verification).");
     let pvk = groth16::prepare_verifying_key(&params.vk);
 
-    
+    /*
     println!("Pick test values for Mint circuit.");
-    let amount: u64 = 10;
-    let symbol: u64 = 123456789;
+    let quantity = Asset::new(100000, Symbol::new(4, "ZEOS".to_string()));
+    let amount: u64 = quantity.amount().try_into().unwrap();
+    let symbol: u64 = quantity.symbol().value();
     let rho: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
-    let h_sk: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+    let h_sk: [u8; 32] = *blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32])
+        .finalize().as_array();
     let mut note = Vec::new();
     note.extend(amount.to_le_bytes());
     note.extend(symbol.to_le_bytes());
@@ -126,9 +128,12 @@ fn main()
         rho: Some(rho),
         h_sk: Some(h_sk)
     };
-    
+    */
     /*
     println!("Pick test values for Transfer circuit.");
+    let q_a = Asset::new(100000, Symbol::new(4, "ZEOS".to_string()));
+    let q_b = Asset::new(100000, Symbol::new(4, "ZEOS".to_string()));
+    let q_c = Asset::new(0, Symbol::new(4, "ZEOS".to_string()));
     let sk_a: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let mut image = Vec::new();
     image.extend(sk_a.clone());
@@ -137,14 +142,18 @@ fn main()
         .to_state()
         .update(&image)
         .finalize();
-    let a: u64 = 10;
-    let b: u64 = 3;
-    let c: u64 = 7;
-    let symbol: u64 = 123456789;
+    let a: u64 = q_a.amount().try_into().unwrap();
+    let b: u64 = q_b.amount().try_into().unwrap();
+    let c: u64 = q_c.amount().try_into().unwrap();
+    let symbol: u64 = q_a.symbol().value();
     let rho_a : [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let rho_b : [u8; 32] = [2, 3, 4, 5, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let rho_c : [u8; 32] = [3, 4, 5, 6, 7, 8, 9, 10, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
-    let h_sk_b : [u8; 32] = [42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42];
+    let h_sk_b : [u8; 32] = *blake2s_simd_params::new()
+    .personal(&[0; 8])
+    .to_state()
+    .update(&[42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42])
+    .finalize().as_array();
     // Z_a
     let mut note_a = Vec::new();
     note_a.extend(a.to_le_bytes());
@@ -190,6 +199,33 @@ fn main()
     // auth_path (TREE_DEPTH = 2)
     //       rt
     //      /  \
+    //    n1    0
+    //   /  \
+    // Z_a   0
+    // n1
+    let mut image = Vec::new();
+    image.extend(z_a.as_array().clone());
+    image.extend([0; 32]);
+    let n1 = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&image)
+        .finalize();
+    // rt
+    let mut image = Vec::new();
+    image.extend(n1.as_array().clone());
+    image.extend([0; 32]);
+    let rt = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&image)
+        .finalize();
+    let auth_path = [Some(([0; 32], false)), Some(([0; 32], false))];
+    */
+    /*
+    // auth_path (TREE_DEPTH = 2)
+    //       rt
+    //      /  \
     //    l1    0
     //   /  \
     //  x    Z_a
@@ -214,7 +250,8 @@ fn main()
         .finalize();
     let auth_path = [Some((x, true)), Some(([0; 32], false))];
     //let auth_path = [Some((x, true))];
-
+    */
+    /*
     println!("Create an instance of Transfer circuit (with the test values as witnesses).");
     let c = Transfer {
         sk_a: Some(sk_a),
@@ -229,9 +266,12 @@ fn main()
         auth_path: auth_path
     };
     */
-    /*
+    
     println!("Pick test values for Burn circuit.");
-    let sk_a: [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+    let q_a = Asset::new(100000, Symbol::new(4, "ZEOS".to_string()));
+    let q_b = Asset::new(100000, Symbol::new(4, "ZEOS".to_string()));
+    let q_c = Asset::new(0, Symbol::new(4, "ZEOS".to_string()));
+    let sk_a: [u8; 32] = [42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42];//[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let mut image = Vec::new();
     image.extend(sk_a.clone());
     let h_sk_a = blake2s_simd_params::new()
@@ -239,11 +279,11 @@ fn main()
         .to_state()
         .update(&image)
         .finalize();
-    let a: u64 = 10;
-    let b: u64 = 3;
-    let c: u64 = 7;
-    let symbol: u64 = 123456789;
-    let rho_a : [u8; 32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+    let a: u64 = q_a.amount().try_into().unwrap();
+    let b: u64 = q_b.amount().try_into().unwrap();
+    let c: u64 = q_c.amount().try_into().unwrap();
+    let symbol: u64 = q_a.symbol().value();
+    let rho_a : [u8; 32] = [2, 3, 4, 5, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     let rho_c : [u8; 32] = [3, 4, 5, 6, 7, 8, 9, 10, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
     // Z_a
     let mut note_a = Vec::new();
@@ -279,6 +319,62 @@ fn main()
     // auth_path (TREE_DEPTH = 2)
     //       rt
     //      /  \
+    //    n1    n2
+    //   /  \   /  \
+    //  x   Z_a ......  
+    // n1
+    let mut image = Vec::new();
+    let x = [0xf9, 0x85, 0xb0, 0x49, 0x6e, 0x74, 0x60, 0x4b, 0x95, 0x75, 0xdf, 0x66, 0x4a, 0x3c, 0xfd, 0x63, 0xe0, 0x62, 0xe4, 0x2a, 0xb2, 0xed, 0xa4, 0x0e, 0xdd, 0x54, 0x4d, 0x36, 0x8f, 0x7d, 0x69, 0x07];
+    image.extend(x);
+    image.extend(z_a.as_array().clone());
+    let n1 = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&image)
+        .finalize();
+    //println!("{:x?}", n1.as_array());
+    // rt
+    let mut image = Vec::new();
+    image.extend(n1.as_array().clone());
+    let n2 = [0xed, 0x07, 0x6b, 0x4e, 0x3b, 0xd0, 0x14, 0xde, 0x78, 0x4a, 0xfc, 0xb8, 0x30, 0xc0, 0xa5, 0xec, 0x3b, 0x36, 0x0f, 0x50, 0x2e, 0xdf, 0x32, 0xf2, 0x67, 0x58, 0x49, 0xd7, 0xfb, 0x75, 0xc7, 0xa3];
+    image.extend(n2);
+    let rt = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&image)
+        .finalize();
+    let auth_path = [Some((x, true)), Some((n2, false))];
+    /*
+    // auth_path (TREE_DEPTH = 2)
+    //       rt
+    //      /  \
+    //    n1    0
+    //   /  \
+    // Z_a   0
+    // n1
+    let mut image = Vec::new();
+    image.extend(z_a.as_array().clone());
+    image.extend([0; 32]);
+    let n1 = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&image)
+        .finalize();
+    // rt
+    let mut image = Vec::new();
+    image.extend(n1.as_array().clone());
+    image.extend([0; 32]);
+    let rt = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&image)
+        .finalize();
+    let auth_path = [Some(([0; 32], false)), Some(([0; 32], false))];
+    */
+    /*
+    // auth_path (TREE_DEPTH = 2)
+    //       rt
+    //      /  \
     //    l1    0
     //   /  \
     //  x    Z_a
@@ -303,6 +399,7 @@ fn main()
         .finalize();
     let auth_path = [Some((x, true)), Some(([0; 32], false))];
     //let auth_path = [Some((x, true))];
+    */
 
     println!("Create an instance of Burn circuit (with the test values as witnesses).");
     let c = Burn {
@@ -315,14 +412,12 @@ fn main()
         rho_c: Some(rho_c),
         auth_path: auth_path
     };
-    */
+    
     
     println!("Create a Groth16 proof with our parameters.");
     let proof = groth16::create_random_proof(c, &params, &mut OsRng).unwrap();
     
-    // print proof as json
-    println!("{}", to_json(&proof));
-
+    /*
     // Mint Circuit
     println!("Pack the amount, symbol and note commitment as inputs for proof verification.");
     let mut input_bits = Vec::new();
@@ -333,7 +428,11 @@ fn main()
     input_bits.extend(symbol_bits);
     input_bits.extend(z_bits);
     let inputs = multipack::compute_multipacking(&input_bits);
-    
+    // print proof, quantity and z_a as json
+    println!("{}", to_json(&proof));
+    println!("{}", to_json(&quantity));
+    println!("{}", to_json(&z));
+    */
     /*
     // Transfer Circuit
     println!("Pack the hash as inputs for proof verification.");
@@ -347,8 +446,14 @@ fn main()
     input_bits.extend(z_c_bits.clone());
     input_bits.extend(rt_bits.clone());
     let inputs = multipack::compute_multipacking(&input_bits);
+    // print proof, nullifier of a, not commitments z_b and z_c and root as json
+    println!("{}", to_json(&proof));
+    println!("{}", to_json(&nf_a));
+    println!("{}", to_json(&z_b));
+    println!("{}", to_json(&z_c));
+    println!("{}", to_json(&rt));
     */
-    /*
+    
     // Burn Circuit
     println!("Pack the hash as inputs for proof verification.");
     let nf_a_bits = multipack::bytes_to_bits_le(nf_a.as_array());
@@ -363,14 +468,22 @@ fn main()
     input_bits.extend(z_c_bits.clone());
     input_bits.extend(rt_bits.clone());
     let inputs = multipack::compute_multipacking(&input_bits);
-    */
+    // print proof, nullifier of a, not commitments z_b and z_c and root as json
+    println!("{}", to_json(&proof));
+    println!("{}", to_json(&nf_a));
+    println!("{}", to_json(&q_b));
+    println!("{}", to_json(&z_c));
+    println!("{}", to_json(&rt));
+    
 
-    // print inputs as json
-    println!("{}", to_json(&inputs));
+    // print vk as json
+    //println!("{}", to_json(&params.vk));
+    //println!("{}", to_json(&proof));
+    //println!("{}", to_json(&inputs));
 
     println!("Check the proof!");
     assert!(groth16::verify_proof(&pvk, &proof, &inputs).is_ok());
-
+/*
     let t = blake2s_simd_params::new()
         .personal(&[0; 8])
         .to_state()
@@ -382,4 +495,5 @@ fn main()
 
     let a = Asset::new(100010, Symbol::new(4, "ZEOS".to_string()));
     println!("{}", to_json(&a));
+*/
 }

@@ -1,11 +1,19 @@
 use std::convert::TryInto;
 use std::fmt::Write;
 
+use bellman::{
+    groth16::{
+        Parameters,
+        VerifyingKey,
+        Proof
+    },
+    groth16, Circuit, ConstraintSystem, SynthesisError, multiexp::SourceBuilder,
+};
+use bls12_381::{Bls12};
 use zeos_proofs::circuit::zeos::{NoteValue, Transfer};
 
 use serde::{Serialize, Deserialize};
-use serde_big_array::BigArray;
-
+use serde_json;
 
 use rand_core::OsRng;
 use x25519_dalek::{EphemeralSecret, PublicKey};
@@ -19,75 +27,65 @@ use aes::cipher::{
 
 use blake2s_simd::{Hash, blake2s as blake2s_simd, Params as blake2s_simd_params};
 
+
+
+use wasm_bindgen::prelude::*;
+
 // returns the type name of a variable
 fn type_of<T>(_: &T) -> &'static str
 {
     std::any::type_name::<T>()
 }
 
-use bellman::{groth16::{VerifyingKey, Proof}, groth16};
-use bls12_381::{Bls12};
 
-//extern crate libc;
-//use libc::{c_char, puts};
-//use std::ffi::CStr;
-
-// a Keypair is defined by its private key and the derived address
-pub struct KeyPair
+// a Secret/Private Key
+pub struct SecretKey
 {
-    esk: curve25519Scalar,
-    pk: PublicKey,
-    h_sk: Hash
+    sk: curve25519Scalar
 }
 
-impl KeyPair
+impl SecretKey
 {
-    pub fn new(mut scalar: [u8; 32]) -> KeyPair
+    pub fn new(mut scalar: [u8; 32]) -> SecretKey
     {
+        // perform the so called "clamping"
         scalar[0] &= 248;
         scalar[31] &= 127;
         scalar[31] |= 64;
 
         let esk_scalar = curve25519Scalar::from_bits(scalar);
-        let esk: &EphemeralSecret = unsafe {&*(&esk_scalar as *const curve25519Scalar as *const EphemeralSecret)};
-        let pk = PublicKey::from(esk);
-        let h_sk = blake2s_simd_params::new()
-            .personal(b"Shaftoes")
-            .to_state()
-            .update(&esk_scalar.to_bytes())
-            .finalize();
-        
-        return KeyPair{esk: esk_scalar, pk, h_sk};
+        return SecretKey{sk: esk_scalar};
     }
 
-    pub fn new_rnd() -> KeyPair
+    pub fn new_rnd() -> SecretKey
     {
         let esk = EphemeralSecret::new(OsRng);
-        let pk = PublicKey::from(&esk);
         let esk_scalar: &curve25519Scalar = unsafe {&*(&esk as *const EphemeralSecret as *const curve25519Scalar)};
-        let h_sk = blake2s_simd_params::new()
-            .personal(b"Shaftoes")
-            .to_state()
-            .update(&esk_scalar.to_bytes())
-            .finalize();
-        return KeyPair{esk: *esk_scalar, pk, h_sk};
+        return SecretKey{sk: *esk_scalar};
     }
 
     pub fn sk(&self) -> [u8; 32]
     {
-        return self.esk.to_bytes();
+        return self.sk.to_bytes();
     }
 
     pub fn pk(&self) -> [u8; 32]
     {
-        return self.pk.to_bytes();
+        let esk: &EphemeralSecret = unsafe {&*(&self.sk as *const curve25519Scalar as *const EphemeralSecret)};
+        let pk = PublicKey::from(esk);
+        return pk.to_bytes();
     }
 
     pub fn h_sk(&self) -> [u8; 32]
     {
-        return *self.h_sk.as_array();
+        let h_sk = blake2s_simd_params::new()
+            .personal(b"Shaftoes")
+            .to_state()
+            .update(&self.sk.to_bytes())
+            .finalize();
+        return *h_sk.as_array();
     }
-
+/*
     pub fn write_addr(&self, arr: &mut [u8; 64])
     {
         for(i, x) in self.pk.to_bytes().iter().enumerate()
@@ -99,6 +97,7 @@ impl KeyPair
             arr[32+i] = *x;
         }
     }
+*/
 }
 
 // A Symbol represents an EOSIO symbol which is an unsigned 64 bit integer
@@ -197,6 +196,21 @@ impl Asset
     }
 }
 
+impl From<&str> for Asset
+{
+    fn from(str: &str) -> Asset
+    {
+        let dot = str.find(".").unwrap();   // TODO: whta if None?
+        let space = str.find(" ").unwrap();
+
+        let decimals = space - dot - 1;
+        let sbl = Symbol::new(decimals.try_into().unwrap(), str.chars().skip(space+1).collect());
+        let amt = str.replace(".", "").chars().take(space-1).collect::<String>().parse::<i64>().unwrap();
+
+        return Asset{amount: amt, symbol: sbl};
+    }
+}
+
 // This represents a note. 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Note
@@ -260,39 +274,30 @@ impl Note
 pub struct TxReceiver
 {
     notes: Vec<Note>,
-    #[serde(with = "BigArray")]
-    address: [u8; 64],
-    memo: Vec<u8>
+    memo: [u8; 32]
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TxSender
 {
     change: Note,
-    #[serde(with = "BigArray")]
-    address: [u8; 64],
     esk_r: [u8; 32]
 }
-enum TxType
-{
-    MINT,
-    TRANSFER,
-    BURN
-}
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Transaction
 {
-    kind: TxType,
     epk_s: [u8; 32],
     sender: TxSender,
     epk_r: [u8; 32],
     receiver: TxReceiver
 }
+#[derive(Serialize, Deserialize, Debug)]
 // this is how it looks like on the smart contract side
 pub struct EncryptedTransaction
 {
     epk_s: [u8; 32],
-    ciphertext_s: Vec<u8>,
+    ciphertext_s: Vec<[u8; 16]>,
     epk_r: [u8; 32],
-    ciphertext_r: Vec<u8>
+    ciphertext_r: Vec<[u8; 16]>
 }
 
 
@@ -514,7 +519,7 @@ pub fn to_json<T>(var: &T) -> String
         {
             let h: &Hash = unsafe {&*(var as *const T as *const Hash)};
             
-            for byte in h.as_array().iter().rev()
+            for byte in h.as_array()
             {
                 json.push_str(format!("{:02x}", byte).as_str());
             }
@@ -535,10 +540,55 @@ pub fn to_json<T>(var: &T) -> String
     return json;
 }
 
+// create mint proof
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub fn processFile(params_bytes: &[u8], secret_key: &[u8], tx_str: String) -> String
+{
+    // read Parameter from byte array from JS like this: https://stackoverflow.com/questions/56685410/pass-file-from-javascript-to-u8-in-rust-webassembly
+    //let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();
+    
+    let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
+
+    let tx: Transaction = serde_json::from_str(&tx_str).unwrap();
+
+    // circuit struct
+    // proof erzeugen
+    // als json zurueckgeben
+    return format!("tx.sender.change.amt = {:?}, tx.receiver.notes[1].amt = {:?}, sk = {:x?}", tx.sender.change.amount(), tx.receiver.notes[1].amount(), sk.sk());
+    //return to_json(&params.vk);
+    //return "hello ".into();
+}
+
+// decrypt transaction
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub fn decrypt_transaction(secret_key: &[u8], encrypted_transaction: String) -> String
+{
+    let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
+    let enc_tx: EncryptedTransaction = serde_json::from_str(&encrypted_transaction).unwrap();
+
+    // decrypt
+
+    return format!("enc_tx.ciphertext_s[2] = {:x?}, sk = {:x?}", enc_tx.ciphertext_s[2], sk.sk());
+}
+
 // test function
 #[no_mangle]
 pub extern "C" fn rust_function(a: i32, b: i32) -> i32
 {
     return a + b;
+}
+
+#[wasm_bindgen]
+extern {
+    pub fn alert(s: &str);
+}
+
+#[wasm_bindgen]
+pub fn greet(name: &str) {
+    alert(&format!("Hello, {}!", name));
 }
 
