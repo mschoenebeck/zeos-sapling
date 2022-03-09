@@ -430,7 +430,7 @@ fn main()
     let inputs = multipack::compute_multipacking(&input_bits);
     // print proof, quantity and z_a as json
     println!("{}", to_json(&proof));
-    println!("{}", to_json(&quantity));
+    println!("{}", quantity.to_string());
     println!("{}", to_json(&z));
     */
     /*
@@ -471,7 +471,7 @@ fn main()
     // print proof, nullifier of a, not commitments z_b and z_c and root as json
     println!("{}", to_json(&proof));
     println!("{}", to_json(&nf_a));
-    println!("{}", to_json(&q_b));
+    println!("{}", q_b.to_string());
     println!("{}", to_json(&z_c));
     println!("{}", to_json(&rt));
     

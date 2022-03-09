@@ -597,8 +597,37 @@ pub fn to_json<T>(var: &T) -> String
         "rustzeos::Asset" =>
         {
             let a: &Asset = unsafe {&*(var as *const T as *const Asset)};
-            
-            json.push_str(format!("{}", a.to_string()).as_str());
+            json.push_str(&serde_json::to_string(a).unwrap());
+        },
+        "rustzeos::Transaction" =>
+        {
+            let tx: &Transaction = unsafe {&*(var as *const T as *const Transaction)};
+            json.push_str(&serde_json::to_string(tx).unwrap());
+        },
+        "rustzeos::EncryptedTransaction" =>
+        {
+            let enc_tx: &EncryptedTransaction = unsafe {&*(var as *const T as *const EncryptedTransaction)};
+            json.push_str(&serde_json::to_string(enc_tx).unwrap());
+        },
+        "rustzeos::TxSender" =>
+        {
+            let txs: &TxSender = unsafe {&*(var as *const T as *const TxSender)};
+            json.push_str(&serde_json::to_string(txs).unwrap());
+        },
+        "rustzeos::TxReceiver" =>
+        {
+            let txr: &TxReceiver = unsafe {&*(var as *const T as *const TxReceiver)};
+            json.push_str(&serde_json::to_string(txr).unwrap());
+        },
+        "rustzeos::Note" =>
+        {
+            let n: &Note = unsafe {&*(var as *const T as *const Note)};
+            json.push_str(&serde_json::to_string(n).unwrap());
+        },
+        "rustzeos::Symbol" =>
+        {
+            let s: &Symbol = unsafe {&*(var as *const T as *const Symbol)};
+            json.push_str(&serde_json::to_string(s).unwrap());
         },
         _ =>
         {
@@ -620,13 +649,19 @@ pub fn generate_mint_transaction(params_bytes: &[u8], secret_key: &[u8], tx_str:
     //let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();
     
     let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
-
     let tx: Transaction = serde_json::from_str(&tx_str).unwrap();
+    let enc_tx = EncryptedTransaction{
+        epk_s: tx.epk_s,
+        ciphertext_s: encrypt_serde_object(&sk.sk(), &tx.sender),
+        epk_r: tx.epk_r,
+        ciphertext_r: encrypt_serde_object(&sk.sk(), &tx.receiver)
+    };
 
     // circuit struct
     // proof erzeugen
     // als json zurueckgeben
-    return format!("tx.sender.change.amt = {:?}, tx.receiver.notes[1].amt = {:?}, sk = {:x?}", tx.sender.change.amount(), tx.receiver.notes[1].amount(), sk.sk());
+    return to_json(&enc_tx);
+    //return format!("tx.sender.change.amt = {:?}, tx.receiver.notes[1].amt = {:?}, sk = {:x?}", tx.sender.change.amount(), tx.receiver.notes[1].amount(), sk.sk());
     //return to_json(&params.vk);
     //return "hello ".into();
 }
@@ -639,10 +674,14 @@ pub fn decrypt_transaction(secret_key: &[u8], encrypted_transaction: String) -> 
 {
     let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
     let enc_tx: EncryptedTransaction = serde_json::from_str(&encrypted_transaction).unwrap();
+    let tx = Transaction{
+        epk_s: enc_tx.epk_s,
+        sender: decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_s),
+        epk_r: enc_tx.epk_r,
+        receiver: decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_r)
+    };
 
-    // decrypt
-
-    return format!("enc_tx.ciphertext_s[2] = {:x?}, sk = {:x?}", enc_tx.ciphertext_s[2], sk.sk());
+    return to_json(&tx);
 }
 
 // test function
