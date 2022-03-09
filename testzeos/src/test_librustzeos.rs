@@ -48,7 +48,7 @@ fn main()
 
     let alice_shared_secret = alice_secret.diffie_hellman(&bob_public);
     let enc = encrypt_serde_object(alice_shared_secret.as_bytes(), &txs);
-    let txs: TxSender = decrypt_serde_object(alice_shared_secret.as_bytes(), &enc);
+    let txs: Option<TxSender> = decrypt_serde_object(alice_shared_secret.as_bytes(), &enc);
     println!("{:?}", txs);
     return;
 

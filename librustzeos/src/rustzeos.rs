@@ -289,9 +289,9 @@ pub struct TxSender
 pub struct Transaction
 {
     pub epk_s: [u8; 32],
-    pub sender: TxSender,
+    pub sender: Option<TxSender>,
     pub epk_r: [u8; 32],
-    pub receiver: TxReceiver
+    pub receiver: Option<TxReceiver>
 }
 #[derive(Serialize, Deserialize, Debug)]
 // this is how it looks like on the smart contract side
@@ -340,7 +340,7 @@ pub fn encrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], obj
 }
 
 // decrypt serializable object
-pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes_blocks: &Vec<[u8; 16]>) -> T
+pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes_blocks: &Vec<[u8; 16]>) -> Option<T>
 {
     let cipher = Aes256::new(GenericArray::from_slice(key));
 
@@ -363,7 +363,7 @@ pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes
     {
         if 0 != ciphertext[i]
         {
-            println!("error!");
+            return None;
         }
     }
     let num_padding_bytes = ciphertext[7];
@@ -374,7 +374,7 @@ pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes
 
     let de: T = bincode::deserialize(&ser[..]).unwrap();
 
-    return de;
+    return Some(de);
 }
 
 // to smart contract json function (VK, Proof, Inputs)
@@ -659,11 +659,9 @@ pub fn generate_mint_transaction(params_bytes: &[u8], secret_key: &[u8], tx_str:
 
     // circuit struct
     // proof erzeugen
+    
     // als json zurueckgeben
     return to_json(&enc_tx);
-    //return format!("tx.sender.change.amt = {:?}, tx.receiver.notes[1].amt = {:?}, sk = {:x?}", tx.sender.change.amount(), tx.receiver.notes[1].amount(), sk.sk());
-    //return to_json(&params.vk);
-    //return "hello ".into();
 }
 
 // decrypt transaction
