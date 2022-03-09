@@ -13,6 +13,7 @@ use bls12_381::{Bls12};
 use zeos_proofs::circuit::zeos::{NoteValue, Transfer};
 
 use serde::{Serialize, Deserialize};
+use serde::de::DeserializeOwned;
 use serde_json;
 
 use rand_core::OsRng;
@@ -273,39 +274,108 @@ impl Note
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TxReceiver
 {
-    notes: Vec<Note>,
-    memo: [u8; 32]
+    pub notes: Vec<Note>,
+    pub memo: [u8; 32]
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TxSender
 {
-    change: Note,
-    esk_r: [u8; 32]
+    pub change: Note,
+    pub esk_r: [u8; 32],
+    pub h_sk_r: [u8; 32],
+    pub pk_r: [u8; 32]
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Transaction
 {
-    epk_s: [u8; 32],
-    sender: TxSender,
-    epk_r: [u8; 32],
-    receiver: TxReceiver
+    pub epk_s: [u8; 32],
+    pub sender: TxSender,
+    pub epk_r: [u8; 32],
+    pub receiver: TxReceiver
 }
 #[derive(Serialize, Deserialize, Debug)]
 // this is how it looks like on the smart contract side
 pub struct EncryptedTransaction
 {
-    epk_s: [u8; 32],
-    ciphertext_s: Vec<[u8; 16]>,
-    epk_r: [u8; 32],
-    ciphertext_r: Vec<[u8; 16]>
+    pub epk_s: [u8; 32],
+    pub ciphertext_s: Vec<[u8; 16]>,
+    pub epk_r: [u8; 32],
+    pub ciphertext_r: Vec<[u8; 16]>
 }
 
+// encrypt serializable object
+pub fn encrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], obj: &T) -> Vec<[u8; 16]>
+{
+    let cipher = Aes256::new(GenericArray::from_slice(key));
+ 
+    // serialize to byte vector
+    let mut ser: Vec<u8> = bincode::serialize(&obj).unwrap();
 
+    // add 7 zero bytes . 1 byte (num of padding bytes) . padding bytes . ser
+    let num_padding_bytes = 16-(ser.len()+8)%16;
+    let mut ciphertext: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, num_padding_bytes as u8];
+    let mut padding_bytes = vec![0 as u8; num_padding_bytes];
+    ciphertext.append(&mut padding_bytes);
+    ciphertext.append(&mut ser);
 
+    // ASSERT ciphertext.len()%16 == 0
 
-// encrypt Transaction
+    // encrypt to vector of aes blocks
+    let mut res =Vec::new();
+    let num_blocks = ciphertext.len()/16;
+    for i in 0..num_blocks
+    {
+        let mut block = Block::clone_from_slice(&ciphertext[i*16..(i+1)*16]);
 
-// decrypt Transaction
+        cipher.encrypt_block(&mut block);
+        let mut x = [0 as u8; 16];
+        for j in 0..16
+        {
+            x[j] = block[j];
+        }
+        res.push(x);
+    }
+
+    return res;
+}
+
+// decrypt serializable object
+pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes_blocks: &Vec<[u8; 16]>) -> T
+{
+    let cipher = Aes256::new(GenericArray::from_slice(key));
+
+    // decrypt vector of aes blocks
+    let mut ciphertext: Vec<u8> = vec![];
+    for i in 0..aes_blocks.len()
+    {
+        let mut block = Block::clone_from_slice(&aes_blocks[i]);
+        //println!("{:?}", block);
+
+        cipher.decrypt_block(&mut block);
+        for j in 0..16
+        {
+            ciphertext.push(block[j]);
+        }
+    }
+
+    // check for 7 null bytes
+    for i in 0..7
+    {
+        if 0 != ciphertext[i]
+        {
+            println!("error!");
+        }
+    }
+    let num_padding_bytes = ciphertext[7];
+    // cut off the padding bytes
+    let l: usize = (8+num_padding_bytes) as usize;
+    let mut ser = vec![0; ciphertext.len()-l];
+    ser.clone_from_slice(&ciphertext[l..ciphertext.len()]);
+
+    let de: T = bincode::deserialize(&ser[..]).unwrap();
+
+    return de;
+}
 
 // to smart contract json function (VK, Proof, Inputs)
 pub fn to_json<T>(var: &T) -> String
@@ -540,11 +610,11 @@ pub fn to_json<T>(var: &T) -> String
     return json;
 }
 
-// create mint proof
+// generate mint transaction
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 #[no_mangle]
-pub fn processFile(params_bytes: &[u8], secret_key: &[u8], tx_str: String) -> String
+pub fn generate_mint_transaction(params_bytes: &[u8], secret_key: &[u8], tx_str: String) -> String
 {
     // read Parameter from byte array from JS like this: https://stackoverflow.com/questions/56685410/pass-file-from-javascript-to-u8-in-rust-webassembly
     //let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();

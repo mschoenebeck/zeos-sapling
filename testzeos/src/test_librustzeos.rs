@@ -11,7 +11,7 @@ use rand::rngs::OsRng as OsRng2;
 use blake2s_simd::{Hash, blake2s as blake2s_simd, Params as blake2s_simd_params};
 
 extern crate rustzeos;
-use rustzeos::{SecretKey, Symbol, Asset, Note, to_json};
+use rustzeos::*;
 
 use bellman::{gadgets::{multipack}, groth16::{VerifyingKey, Proof}, groth16};
 use bls12_381::Bls12;
@@ -24,11 +24,33 @@ use std::io::{BufWriter, BufReader};
 
 fn main()
 {
+    let txs = TxSender{
+        change: Note::new(Asset::new(150000, Symbol::new(4, String::from("ZEOS"))),
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]),
+        esk_r: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+        h_sk_r: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+        pk_r: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    };
+
+    // Alice creates key pair
     let alice_secret = EphemeralSecret::new(OsRng);
     let alice_public = PublicKey::from(&alice_secret);
     
     let w = &alice_secret as *const EphemeralSecret as *const curve25519_dalek::scalar::Scalar;
     let alice_secret_scalar: &curve25519_dalek::scalar::Scalar = unsafe {&*w};
+
+    // Bob creates key pair
+    let bob_secret = EphemeralSecret::new(OsRng);
+    let bob_public = PublicKey::from(&bob_secret);
+
+    let w = &bob_secret as *const EphemeralSecret as *const curve25519_dalek::scalar::Scalar;
+    let bob_secret_scalar: &curve25519_dalek::scalar::Scalar = unsafe {&*w};
+
+    let alice_shared_secret = alice_secret.diffie_hellman(&bob_public);
+    let enc = encrypt_serde_object(alice_shared_secret.as_bytes(), &txs);
+    let txs: TxSender = decrypt_serde_object(alice_shared_secret.as_bytes(), &enc);
+    println!("{:?}", txs);
+    return;
 
     println!("alice sk = {:02x?}", alice_secret_scalar.to_bytes());
     println!("alice pk = {:02x?}", alice_public.to_bytes());
