@@ -16,8 +16,6 @@ use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 use serde_json;
 
-use bs58::{encode, decode};
-
 use x25519_dalek::{StaticSecret, PublicKey};
 
 //use rand_core::OsRng;
@@ -81,11 +79,6 @@ impl SecretKey
     {
         return self.0.diffie_hellman(&PublicKey::from(*pk)).to_bytes();
     }
-
-    pub fn to_string(&self) -> String
-    {
-        return format!("{}", bs58::encode(self.sk()).into_string());
-    }
 }
 impl From<[u8; 32]> for SecretKey
 {
@@ -118,11 +111,6 @@ impl Address
     pub fn pk(&self) -> [u8; 32]
     {
         return self.pk;
-    }
-
-    pub fn to_string(&self) -> String
-    {
-        return format!("{}{}{}", "Z", bs58::encode(self.h_sk).into_string(), bs58::encode(self.pk).into_string());
     }
 }
 
@@ -706,21 +694,14 @@ pub fn to_json<T>(var: &T) -> String
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 #[no_mangle]
-pub fn create_key(seed: &[u8], as_base58: bool) -> String
+pub fn create_key(seed: &[u8]) -> String
 {
     // if secret_key is at least a 32 byte array it's values will be used as a seed for the new secret key
     if seed.len() >= 32
     {
         let seed: &[u8; 32] = unsafe {&*(seed as *const [u8] as *const [u8; 32])};
         let sk = SecretKey::from(*seed);
-        if as_base58
-        {
-            return format!("{{\"sk\":{},\"addr\":{}}}", &sk.to_string(), &sk.addr().to_string());
-        }
-        else
-        {
-            return format!("{{\"sk\":{},\"addr\":{}}}", to_json(&sk), to_json(&sk.addr()));
-        }
+        return format!("{{\"sk\":{},\"addr\":{}}}", to_json(&sk), to_json(&sk.addr()));
     }
 
     // create new random key
@@ -729,14 +710,7 @@ pub fn create_key(seed: &[u8], as_base58: bool) -> String
     // !!! KEY IS INITIALIZED WITH 42's ONLY !!!
     // always provide Randomness via parameter 'seed'
     let sk = SecretKey::new();
-    if as_base58
-    {
-        return format!("{{\"sk\":{},\"addr\":{}}}", &sk.to_string(), &sk.addr().to_string());
-    }
-    else
-    {
-        return format!("{{\"sk\":{},\"addr\":{}}}", to_json(&sk), to_json(&sk.addr()));
-    }
+    return format!("{{\"sk\":{},\"addr\":{}}}", to_json(&sk), to_json(&sk.addr()));
 }
 
 // generate mint transaction
