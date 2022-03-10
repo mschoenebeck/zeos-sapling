@@ -17,8 +17,7 @@ use serde::de::DeserializeOwned;
 use serde_json;
 
 use rand_core::OsRng;
-use x25519_dalek::{EphemeralSecret, PublicKey};
-use curve25519_dalek::scalar::Scalar as curve25519Scalar;
+use x25519_dalek::{StaticSecret, PublicKey};
 
 use aes::{Aes256, Block, ParBlocks};
 use aes::cipher::{
@@ -27,8 +26,6 @@ use aes::cipher::{
 };
 
 use blake2s_simd::{Hash, blake2s as blake2s_simd, Params as blake2s_simd_params};
-
-
 
 use wasm_bindgen::prelude::*;
 
@@ -40,51 +37,46 @@ fn type_of<T>(_: &T) -> &'static str
 
 
 // a Secret/Private Key
-pub struct SecretKey
-{
-    sk: curve25519Scalar
-}
+pub struct SecretKey(StaticSecret);
 
 impl SecretKey
 {
-    pub fn new(mut scalar: [u8; 32]) -> SecretKey
+    pub fn new() -> Self
     {
-        // perform the so called "clamping"
-        scalar[0] &= 248;
-        scalar[31] &= 127;
-        scalar[31] |= 64;
-
-        let esk_scalar = curve25519Scalar::from_bits(scalar);
-        return SecretKey{sk: esk_scalar};
-    }
-
-    pub fn new_rnd() -> SecretKey
-    {
-        let esk = EphemeralSecret::new(OsRng);
-        let esk_scalar: &curve25519Scalar = unsafe {&*(&esk as *const EphemeralSecret as *const curve25519Scalar)};
-        return SecretKey{sk: *esk_scalar};
-    }
-
-    pub fn sk(&self) -> [u8; 32]
-    {
-        return self.sk.to_bytes();
-    }
-
-    pub fn pk(&self) -> [u8; 32]
-    {
-        let esk: &EphemeralSecret = unsafe {&*(&self.sk as *const curve25519Scalar as *const EphemeralSecret)};
-        let pk = PublicKey::from(esk);
-        return pk.to_bytes();
+        return SecretKey(StaticSecret::new(OsRng))
     }
 
     pub fn h_sk(&self) -> [u8; 32]
     {
         let h_sk = blake2s_simd_params::new()
-            .personal(b"Shaftoes")
+            .personal(&[0; 8])
             .to_state()
-            .update(&self.sk.to_bytes())
+            .update(&self.0.to_bytes())
             .finalize();
         return *h_sk.as_array();
+    }
+
+    pub fn sk(&self) -> [u8; 32]
+    {
+        return self.0.to_bytes();
+    }
+
+    pub fn pk(&self) -> [u8; 32]
+    {
+        return PublicKey::from(&self.0).to_bytes();
+    }
+
+    pub fn diffie_hellman(&self, pk: &[u8; 32]) -> [u8; 32]
+    {
+        return self.0.diffie_hellman(&PublicKey::from(*pk)).to_bytes();
+    }
+}
+impl From<[u8; 32]> for SecretKey
+{
+    /// Load a secret key from a byte array.
+    fn from(bytes: [u8; 32]) -> SecretKey
+    {
+        return SecretKey(StaticSecret::from(bytes));
     }
 }
 
@@ -330,6 +322,11 @@ pub fn encrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], obj
 // decrypt serializable object
 pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes_blocks: &Vec<[u8; 16]>) -> Option<T>
 {
+    if 0 == aes_blocks.len()
+    {
+        return None;
+    }
+
     let cipher = Aes256::new(GenericArray::from_slice(key));
 
     // decrypt vector of aes blocks

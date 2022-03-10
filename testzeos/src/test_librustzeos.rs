@@ -2,7 +2,7 @@
  * Main bellman example taken from: https://docs.rs/bellman/0.10.0/bellman/
  */
 
-use x25519_dalek::{EphemeralSecret, PublicKey};
+use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
 use rand;
 use rand_core::OsRng;
@@ -57,47 +57,39 @@ fn main()
           memo: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
         })
       };
-    //let enc_sender: Vec<[u8; 16]> = vec![[4,134,66,111,13,240,223,168,224,151,145,171,187,22,46,160],[38,30,244,53,74,207,26,226,210,216,239,101,101,72,44,198],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142]];
-    //let enc_receiver: Vec<[u8; 16]> = vec![[148,59,62,128,10,131,124,73,38,39,68,131,236,152,228,249],[242,127,253,220,157,236,27,59,12,208,211,231,130,134,115,127],[38,30,244,53,74,207,26,226,210,216,239,101,101,72,44,198],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142],[189,108,38,202,146,215,234,55,144,194,189,201,76,29,74,112],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142],[90,110,4,87,8,251,113,150,240,46,85,61,2,195,166,146],[233,195,239,138,178,52,83,230,240,116,156,214,54,231,168,142]];
     let sk: [u8; 32] = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31];
     let enc_sender = encrypt_serde_object(&sk, &tx.sender.unwrap());
     let txs: Option<TxSender> = decrypt_serde_object(&sk, &enc_sender);
     //let txr: Option<TxReceiver> = decrypt_serde_object(&sk, &enc_receiver);
-    println!("{:?}", txs);
+    //println!("{:?}", txs);
 
     // Alice creates key pair
-    let alice_secret = EphemeralSecret::new(OsRng);
-    let alice_public = PublicKey::from(&alice_secret);
-    
-    let w = &alice_secret as *const EphemeralSecret as *const curve25519_dalek::scalar::Scalar;
-    let alice_secret_scalar: &curve25519_dalek::scalar::Scalar = unsafe {&*w};
+    let alice_secret = SecretKey::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
+    let alice_public = alice_secret.pk();
 
     // Bob creates key pair
-    let bob_secret = EphemeralSecret::new(OsRng);
-    let bob_public = PublicKey::from(&bob_secret);
-
-    let w = &bob_secret as *const EphemeralSecret as *const curve25519_dalek::scalar::Scalar;
-    let bob_secret_scalar: &curve25519_dalek::scalar::Scalar = unsafe {&*w};
+    let bob_secret = SecretKey::from([99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
+    let bob_public = bob_secret.pk();
 
     let alice_shared_secret = alice_secret.diffie_hellman(&bob_public);
+    let bob_shared_secret = bob_secret.diffie_hellman(&alice_public);
+    assert_eq!(alice_shared_secret, bob_shared_secret);
+    println!("{:?}", alice_shared_secret);
+    println!("{:?}", bob_shared_secret);
     //let enc = encrypt_serde_object(alice_shared_secret.as_bytes(), &tx.sender);
     //let txs: Option<TxSender> = decrypt_serde_object(alice_shared_secret.as_bytes(), &enc);
     //println!("{:?}", txs);
     //println!("{}", to_json(&tx));
     return;
 
-    println!("alice sk = {:02x?}", alice_secret_scalar.to_bytes());
-    println!("alice pk = {:02x?}", alice_public.to_bytes());
+    println!("alice sk = {:02x?}", alice_secret.sk());
+    println!("alice pk = {:02x?}", alice_public);
 
-    let h_sk = blake2s_simd_params::new()
-        .personal(b"Shaftoes")
-        .to_state()
-        .update(&alice_secret_scalar.to_bytes())
-        .finalize();
+    let h_sk = alice_secret.h_sk();
 
     let rnd: [u8; 32] = rand::random();
     println!("rnd = {:02x?}", rnd);
-    let kp2 = SecretKey::new(rnd);
+    let kp2 = SecretKey::new();
     println!("kp2 = {:02x?}", kp2.sk());
     println!("rnd = {:02x?}", rnd);
 
@@ -109,11 +101,11 @@ fn main()
     println!("{}", ass.symbol().decimals());
     println!("{}", ass.symbol().value());
 
-    println!("kp.sk: {:02x?}", alice_secret_scalar.to_bytes());
+    println!("kp.sk: {:02x?}", alice_secret.sk());
     println!("kp2.sk: {:02x?}", kp2.sk());
-    println!("kp.pk: {:02x?}", alice_public.to_bytes());
+    println!("kp.pk: {:02x?}", alice_public);
     println!("kp2.pk: {:02x?}", kp2.pk());
-    println!("kp.h_sk: {:02x?}", h_sk.as_array());
+    println!("kp.h_sk: {:02x?}", h_sk);
     println!("kp2.h_sk: {:02x?}", kp2.h_sk());
     println!("kp2.addr: {:02x?}", arr);
 
