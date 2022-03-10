@@ -16,8 +16,11 @@ use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 use serde_json;
 
-use rand_core::OsRng;
+use bs58::{encode, decode};
+
 use x25519_dalek::{StaticSecret, PublicKey};
+
+//use rand_core::OsRng;
 
 use aes::{Aes256, Block, ParBlocks};
 use aes::cipher::{
@@ -43,7 +46,10 @@ impl SecretKey
 {
     pub fn new() -> Self
     {
-        return SecretKey(StaticSecret::new(OsRng))
+        // TODO: this should be random and not constant
+        // using the OsRng in WASM, however, leads to crash
+        //return SecretKey(StaticSecret::new(OsRng))
+        return SecretKey(StaticSecret::from([42 as u8; 32]))
     }
 
     pub fn h_sk(&self) -> [u8; 32]
@@ -66,9 +72,19 @@ impl SecretKey
         return PublicKey::from(&self.0).to_bytes();
     }
 
+    pub fn addr(&self) -> Address
+    {
+        return Address::new(&self.h_sk(), &self.pk());
+    }
+
     pub fn diffie_hellman(&self, pk: &[u8; 32]) -> [u8; 32]
     {
         return self.0.diffie_hellman(&PublicKey::from(*pk)).to_bytes();
+    }
+
+    pub fn to_string(&self) -> String
+    {
+        return format!("{}", bs58::encode(self.sk()).into_string());
     }
 }
 impl From<[u8; 32]> for SecretKey
@@ -77,6 +93,36 @@ impl From<[u8; 32]> for SecretKey
     fn from(bytes: [u8; 32]) -> SecretKey
     {
         return SecretKey(StaticSecret::from(bytes));
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Address
+{
+    h_sk: [u8; 32],
+    pk: [u8; 32]
+}
+
+impl Address
+{
+    pub fn new(h_sk: &[u8; 32], pk: &[u8; 32]) -> Self
+    {
+        return Address{h_sk: *h_sk, pk: *pk};
+    }
+
+    pub fn h_sk(&self) -> [u8; 32]
+    {
+        return self.h_sk;
+    }
+
+    pub fn pk(&self) -> [u8; 32]
+    {
+        return self.pk;
+    }
+
+    pub fn to_string(&self) -> String
+    {
+        return format!("{}{}{}", "Z", bs58::encode(self.h_sk).into_string(), bs58::encode(self.pk).into_string());
     }
 }
 
@@ -262,8 +308,7 @@ pub struct TxSender
     pub change: Note,
     pub esk_s: [u8; 32],    // viewing key which in combination of the senders public key is able to decrypt the whole tx. can be shared with others as proof of payment
     pub esk_r: [u8; 32],
-    pub h_sk_r: [u8; 32],
-    pub pk_r: [u8; 32]
+    pub addr_r: Address
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Transaction
@@ -634,13 +679,18 @@ pub fn to_json<T>(var: &T) -> String
         },*/
         "rustzeos::SecretKey" =>
         {
-            let sk: &SecretKey = unsafe {&*(var as *const T as *const SecretKey)};
-            json.push_str(&serde_json::to_string(&sk.sk()).unwrap());
+            let sk: &[u8; 32] = unsafe {&*(var as *const T as *const [u8; 32])};
+            json.push_str(&serde_json::to_string(sk).unwrap());
+        },
+        "rustzeos::Address" =>
+        {
+            let addr: &Address = unsafe {&*(var as *const T as *const Address)};
+            json.push_str(&serde_json::to_string(addr).unwrap());
         },
         "alloc::vec::Vec<[u8; 16]>" =>
         {
             let v: &Vec<[u8; 16]> = unsafe {&*(var as *const T as *const Vec<[u8; 16]>)};
-            json.push_str(&serde_json::to_string(&v).unwrap());
+            json.push_str(&serde_json::to_string(v).unwrap());
         }
         _ =>
         {
@@ -650,6 +700,43 @@ pub fn to_json<T>(var: &T) -> String
     }
 
     return json;
+}
+
+// generate a new key pair
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub fn create_key(seed: &[u8], as_base58: bool) -> String
+{
+    // if secret_key is at least a 32 byte array it's values will be used as a seed for the new secret key
+    if seed.len() >= 32
+    {
+        let seed: &[u8; 32] = unsafe {&*(seed as *const [u8] as *const [u8; 32])};
+        let sk = SecretKey::from(*seed);
+        if as_base58
+        {
+            return format!("{{\"sk\":{},\"addr\":{}}}", &sk.to_string(), &sk.addr().to_string());
+        }
+        else
+        {
+            return format!("{{\"sk\":{},\"addr\":{}}}", to_json(&sk), to_json(&sk.addr()));
+        }
+    }
+
+    // create new random key
+    // TODO: Randomness doesn't work in WASM
+    // a constant key is generated
+    // !!! KEY IS INITIALIZED WITH 42's ONLY !!!
+    // always provide Randomness via parameter 'seed'
+    let sk = SecretKey::new();
+    if as_base58
+    {
+        return format!("{{\"sk\":{},\"addr\":{}}}", &sk.to_string(), &sk.addr().to_string());
+    }
+    else
+    {
+        return format!("{{\"sk\":{},\"addr\":{}}}", to_json(&sk), to_json(&sk.addr()));
+    }
 }
 
 // generate mint transaction
@@ -685,28 +772,35 @@ pub fn generate_mint_transaction(params_bytes: &[u8], secret_key: &[u8], tx_str:
 #[no_mangle]
 pub fn decrypt_transaction(secret_key: &[u8], encrypted_transaction: String) -> String
 {
+    // obtain parameters
     let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
     let enc_tx: EncryptedTransaction = serde_json::from_str(&encrypted_transaction).unwrap();
 
-    // first try to decrypt the sender part
-    let sender: Option<TxSender> = decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_s);
+    // the two parts of the transaction we try to decrypt
+    let mut sender: Option<TxSender> = None;
+    let mut receiver: Option<TxReceiver> = None;
+
+    // first try the sender part: obtain symmetric aes encryption key for sender part by performing Diffie Hellman using (sk, epk_s)
+    let sender_enc_key = sk.diffie_hellman(&enc_tx.epk_s);
+    sender = decrypt_serde_object(&sender_enc_key, &enc_tx.ciphertext_s);
+    
     match sender
     {
         // if successful then this secret key was the sender of this tx and can decrypt the whole thing
         Some(ref x) => 
         {
-
+            let receiver_enc_key = SecretKey::from(x.esk_r).diffie_hellman(&x.addr_r.pk);
+            receiver = decrypt_serde_object(&receiver_enc_key, &enc_tx.ciphertext_r);
         },
 
         // if sender decryption was unsuccessful try receiver part
         None => 
         {
-
+            let receiver_enc_key = sk.diffie_hellman(&enc_tx.epk_r);
+            receiver = decrypt_serde_object(&receiver_enc_key, &enc_tx.ciphertext_r);
         }
     }
     
-    let receiver: Option<TxReceiver> = decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_r);
-
     let tx = Transaction{
         epk_s: enc_tx.epk_s,
         sender: sender,
@@ -732,50 +826,4 @@ extern {
 #[wasm_bindgen]
 pub fn greet(name: &str) {
     alert(&format!("Hello, {}!", name));
-}
-
-// First up let's take a look of binding `console.log` manually, without the
-// help of `web_sys`. Here we're writing the `#[wasm_bindgen]` annotations
-// manually ourselves, and the correctness of our program relies on the
-// correctness of these annotations!
-
-#[wasm_bindgen]
-extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-
-    // The `console.log` is quite polymorphic, so we can bind it with multiple
-    // signatures. Note that we need to use `js_name` to ensure we always call
-    // `log` in JS.
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_u32(a: u32);
-
-    // Multiple arguments too!
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_many(a: &str, b: &str);
-}
-
-fn bare_bones() {
-    log("Hello from Rust!");
-    log_u32(42);
-    log_many("Logging", "many values!");
-}
-
-// Next let's define a macro that's like `println!`, only it works for
-// `console.log`. Note that `println!` doesn't actually work on the wasm target
-// because the standard library currently just eats all output. To get
-// `println!`-like behavior in your app you'll likely want a macro like this.
-
-macro_rules! console_log {
-    // Note that this is using the `log` function imported above during
-    // `bare_bones`
-    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
-
-fn using_a_macro() {
-    console_log!("Hello {}!", "world");
-    console_log!("Let's print some numbers...");
-    console_log!("1 + 3 = {}", 1 + 3);
 }
