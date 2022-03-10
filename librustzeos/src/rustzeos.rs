@@ -86,19 +86,6 @@ impl SecretKey
             .finalize();
         return *h_sk.as_array();
     }
-/*
-    pub fn write_addr(&self, arr: &mut [u8; 64])
-    {
-        for(i, x) in self.pk.to_bytes().iter().enumerate()
-        {
-            arr[i] = *x;
-        }
-        for(i, x) in self.h_sk.as_array().iter().enumerate()
-        {
-            arr[32+i] = *x;
-        }
-    }
-*/
 }
 
 // A Symbol represents an EOSIO symbol which is an unsigned 64 bit integer
@@ -281,6 +268,7 @@ pub struct TxReceiver
 pub struct TxSender
 {
     pub change: Note,
+    pub esk_s: [u8; 32],    // viewing key which in combination of the senders public key is able to decrypt the whole tx. can be shared with others as proof of payment
     pub esk_r: [u8; 32],
     pub h_sk_r: [u8; 32],
     pub pk_r: [u8; 32]
@@ -357,7 +345,7 @@ pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes
             ciphertext.push(block[j]);
         }
     }
-
+    
     // check for 7 null bytes
     for i in 0..7
     {
@@ -373,7 +361,7 @@ pub fn decrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], aes
     ser.clone_from_slice(&ciphertext[l..ciphertext.len()]);
 
     let de: T = bincode::deserialize(&ser[..]).unwrap();
-
+    
     return Some(de);
 }
 
@@ -628,7 +616,35 @@ pub fn to_json<T>(var: &T) -> String
         {
             let s: &Symbol = unsafe {&*(var as *const T as *const Symbol)};
             json.push_str(&serde_json::to_string(s).unwrap());
+        },/*
+        "core::option::Option<rustzeos::TxSender>" =>
+        {
+            let op_txs: &Option<TxSender> = unsafe {&*(var as *const T as *const Option<TxSender>)};
+            let txs = match op_txs {
+                Some(ref x) => serde_json::to_string(x).unwrap(),
+                None => "null".into()
+            };
+            json.push_str(&txs);
         },
+        "core::option::Option<rustzeos::TxReceiver>" =>
+        {
+            let op_txr: &Option<TxReceiver> = unsafe {&*(var as *const T as *const Option<TxReceiver>)};
+            let txr = match op_txr {
+                Some(ref x) => serde_json::to_string(x).unwrap(),
+                None => "null".into()
+            };
+            json.push_str(&txr);
+        },*/
+        "rustzeos::SecretKey" =>
+        {
+            let sk: &SecretKey = unsafe {&*(var as *const T as *const SecretKey)};
+            json.push_str(&serde_json::to_string(&sk.sk()).unwrap());
+        },
+        "alloc::vec::Vec<[u8; 16]>" =>
+        {
+            let v: &Vec<[u8; 16]> = unsafe {&*(var as *const T as *const Vec<[u8; 16]>)};
+            json.push_str(&serde_json::to_string(&v).unwrap());
+        }
         _ =>
         {
             json.push_str("ERROR: unknown type: ");
@@ -652,14 +668,16 @@ pub fn generate_mint_transaction(params_bytes: &[u8], secret_key: &[u8], tx_str:
     let tx: Transaction = serde_json::from_str(&tx_str).unwrap();
     let enc_tx = EncryptedTransaction{
         epk_s: tx.epk_s,
-        ciphertext_s: encrypt_serde_object(&sk.sk(), &tx.sender),
+        ciphertext_s: encrypt_serde_object(&sk.sk(), &tx.sender.unwrap()),  // unwrap Option before encryption!
         epk_r: tx.epk_r,
-        ciphertext_r: encrypt_serde_object(&sk.sk(), &tx.receiver)
+        ciphertext_r: encrypt_serde_object(&sk.sk(), &tx.receiver.unwrap()) // unwrap Option before encryption!
     };
+
+
 
     // circuit struct
     // proof erzeugen
-    
+
     // als json zurueckgeben
     return to_json(&enc_tx);
 }
@@ -672,11 +690,31 @@ pub fn decrypt_transaction(secret_key: &[u8], encrypted_transaction: String) -> 
 {
     let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
     let enc_tx: EncryptedTransaction = serde_json::from_str(&encrypted_transaction).unwrap();
+
+    // first try to decrypt the sender part
+    let sender: Option<TxSender> = decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_s);
+    match sender
+    {
+        // if successful then this secret key was the sender of this tx and can decrypt the whole thing
+        Some(ref x) => 
+        {
+
+        },
+
+        // if sender decryption was unsuccessful try receiver part
+        None => 
+        {
+
+        }
+    }
+    
+    let receiver: Option<TxReceiver> = decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_r);
+
     let tx = Transaction{
         epk_s: enc_tx.epk_s,
-        sender: decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_s),
+        sender: sender,
         epk_r: enc_tx.epk_r,
-        receiver: decrypt_serde_object(&sk.sk(), &enc_tx.ciphertext_r)
+        receiver: receiver
     };
 
     return to_json(&tx);
@@ -699,3 +737,48 @@ pub fn greet(name: &str) {
     alert(&format!("Hello, {}!", name));
 }
 
+// First up let's take a look of binding `console.log` manually, without the
+// help of `web_sys`. Here we're writing the `#[wasm_bindgen]` annotations
+// manually ourselves, and the correctness of our program relies on the
+// correctness of these annotations!
+
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+
+    // The `console.log` is quite polymorphic, so we can bind it with multiple
+    // signatures. Note that we need to use `js_name` to ensure we always call
+    // `log` in JS.
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_u32(a: u32);
+
+    // Multiple arguments too!
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_many(a: &str, b: &str);
+}
+
+fn bare_bones() {
+    log("Hello from Rust!");
+    log_u32(42);
+    log_many("Logging", "many values!");
+}
+
+// Next let's define a macro that's like `println!`, only it works for
+// `console.log`. Note that `println!` doesn't actually work on the wasm target
+// because the standard library currently just eats all output. To get
+// `println!`-like behavior in your app you'll likely want a macro like this.
+
+macro_rules! console_log {
+    // Note that this is using the `log` function imported above during
+    // `bare_bones`
+    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+}
+
+fn using_a_macro() {
+    console_log!("Hello {}!", "world");
+    console_log!("Let's print some numbers...");
+    console_log!("1 + 3 = {}", 1 + 3);
+}
