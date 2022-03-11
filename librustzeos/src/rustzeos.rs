@@ -1,3 +1,5 @@
+
+
 use std::convert::TryInto;
 use std::fmt::Write;
 
@@ -10,7 +12,7 @@ use bellman::{
     groth16, Circuit, ConstraintSystem, SynthesisError, multiexp::SourceBuilder,
 };
 use bls12_381::{Bls12};
-use zeos_proofs::circuit::zeos::{NoteValue, Transfer};
+use zeos_proofs::circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
 
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
@@ -18,7 +20,7 @@ use serde_json;
 
 use x25519_dalek::{StaticSecret, PublicKey};
 
-//use rand_core::OsRng;
+use rand::rngs::OsRng;
 
 use aes::{Aes256, Block, ParBlocks};
 use aes::cipher::{
@@ -30,12 +32,18 @@ use blake2s_simd::{Hash, blake2s as blake2s_simd, Params as blake2s_simd_params}
 
 use wasm_bindgen::prelude::*;
 
+// Logging using web_sys: https://rustwasm.github.io/book/reference/debugging.html
+extern crate web_sys;
+//web_sys::console::log_1(&"Hello, world!".into());
+//web_sys::console::log takes an array of values to log
+//web_sys::console::log_1 logs a single value
+//web_sys::console::log_2 logs two values
+
 // returns the type name of a variable
 fn type_of<T>(_: &T) -> &'static str
 {
     std::any::type_name::<T>()
 }
-
 
 // a Secret/Private Key
 pub struct SecretKey(StaticSecret);
@@ -44,10 +52,10 @@ impl SecretKey
 {
     pub fn new() -> Self
     {
-        // TODO: this should be random and not constant
-        // using the OsRng in WASM, however, leads to crash
-        //return SecretKey(StaticSecret::new(OsRng))
-        return SecretKey(StaticSecret::from([42 as u8; 32]))
+        use rand::RngCore;
+        let mut buf: [u8; 32] = [0; 32];
+        OsRng.fill_bytes(&mut buf);
+        return SecretKey(StaticSecret::from(buf));
     }
 
     pub fn h_sk(&self) -> [u8; 32]
@@ -705,10 +713,6 @@ pub fn create_key(seed: &[u8]) -> String
     }
 
     // create new random key
-    // TODO: Randomness doesn't work in WASM
-    // a constant key is generated
-    // !!! KEY IS INITIALIZED WITH 42's ONLY !!!
-    // always provide Randomness via parameter 'seed'
     let sk = SecretKey::new();
     return format!("{{\"sk\":{},\"addr\":{}}}", to_json(&sk), to_json(&sk.addr()));
 }
@@ -717,24 +721,53 @@ pub fn create_key(seed: &[u8]) -> String
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 #[no_mangle]
-pub fn generate_mint_transaction(params_bytes: &[u8], secret_key: &[u8], tx_str: String) -> String
+pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json: String) -> String
 {
-    // read Parameter from byte array from JS like this: https://stackoverflow.com/questions/56685410/pass-file-from-javascript-to-u8-in-rust-webassembly
-    //let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();
+    // read Parameter file from byte array
+    let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();
     
-    let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
-    let tx: Transaction = serde_json::from_str(&tx_str).unwrap();
+    // parse addr and tx_r object
+    let addr: Address = serde_json::from_str(&addr_json).unwrap();
+    let txr: TxReceiver = serde_json::from_str(&tx_r_json).unwrap();
+
+    // create new random key pair to encrypt receiver part
+    let esk_r = SecretKey::new();
+    // create symmetric aes encryption key using DH
+    let receiver_enc_key = esk_r.diffie_hellman(&addr.pk);
+
+    // create encrypted tx
     let enc_tx = EncryptedTransaction{
-        epk_s: tx.epk_s,
-        ciphertext_s: encrypt_serde_object(&sk.sk(), &tx.sender.unwrap()),  // unwrap Option before encryption!
-        epk_r: tx.epk_r,
-        ciphertext_r: encrypt_serde_object(&sk.sk(), &tx.receiver.unwrap()) // unwrap Option before encryption!
+        epk_s: [0; 32],
+        ciphertext_s: Vec::new(),
+        epk_r: esk_r.pk(),
+        ciphertext_r: encrypt_serde_object(&receiver_enc_key, &txr)
     };
 
+    // initialize instance of Mint circuit with private input
+    let amount: u64 = txr.notes[0].amount().try_into().unwrap();
+    let symbol: u64 = txr.notes[0].symbol().value();
+    let rho: [u8; 32] = txr.notes[0].rho();
+    let h_sk: [u8; 32] = addr.h_sk();
+    let mut note = Vec::new();
+    note.extend(amount.to_le_bytes());
+    note.extend(symbol.to_le_bytes());
+    note.extend(rho.clone());
+    note.extend(h_sk.clone());
+    let z = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&note)
+        .finalize();
 
+    let c = Mint {
+        amount: Some(amount),
+        symbol: Some(symbol),
+        rho: Some(rho),
+        h_sk: Some(h_sk)
+    };
 
-    // circuit struct
-    // proof erzeugen
+    // create proof
+    let proof = groth16::create_random_proof(c, &params, &mut OsRng).unwrap();
 
     // als json zurueckgeben
     return to_json(&enc_tx);
