@@ -220,9 +220,10 @@ impl Asset
 
 impl From<&str> for Asset
 {
+    // must have format: "123.1234 SYM"
     fn from(str: &str) -> Asset
     {
-        let dot = str.find(".").unwrap();   // TODO: whta if None?
+        let dot = str.find(".").unwrap();
         let space = str.find(" ").unwrap();
 
         let decimals = space - dot - 1;
@@ -246,6 +247,11 @@ impl Note
     pub fn new(quantity: Asset, rho: [u8; 32]) -> Note
     {
         return Note{quantity, rho};
+    }
+
+    pub fn quantity(&self) -> &Asset
+    {
+        return &self.quantity;
     }
 
     pub fn amount(&self) -> i64
@@ -721,7 +727,7 @@ pub fn create_key(seed: &[u8]) -> String
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 #[no_mangle]
-pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json: String) -> String
+pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json: String, eos_username: String) -> String
 {
     // read Parameter file from byte array
     let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();
@@ -769,8 +775,65 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     // create proof
     let proof = groth16::create_random_proof(c, &params, &mut OsRng).unwrap();
 
-    // als json zurueckgeben
-    return to_json(&enc_tx);
+    // create the EOS tx
+    // see thezeostoken contract "mint" action for details about the parameter
+    let mut epk_s_str = format!("{:02X?}", enc_tx.epk_s).replace(", ", "");
+    epk_s_str.pop();
+    epk_s_str.remove(0);
+    let mut epk_r_str = format!("{:02X?}", enc_tx.epk_r).replace(", ", "");
+    epk_r_str.pop();
+    epk_r_str.remove(0);
+    let mut enc_sender_str = String::from("[");
+    for block in enc_tx.ciphertext_s.iter()
+    {
+        let mut block_str = format!("{:02X?}", block).replace(", ", "");
+        block_str.pop();
+        block_str.remove(0);
+        enc_sender_str += &block_str;
+        enc_sender_str += &String::from(",");
+    }
+    if enc_tx.ciphertext_s.len() > 0
+    {
+        enc_sender_str.pop(); // remove last comma
+    }
+    enc_sender_str += &String::from("]");
+
+
+    let mut enc_receiver_str = String::from("[");
+    for block in enc_tx.ciphertext_r.iter()
+    {
+        let mut block_str = format!("{:02X?}", block).replace(", ", "");
+        block_str.pop();
+        block_str.remove(0);
+        enc_receiver_str += &block_str;
+        enc_receiver_str += &String::from(",");
+    }
+    if enc_tx.ciphertext_r.len() > 0
+    {
+        enc_receiver_str.pop(); // remove last comma
+    }
+    enc_receiver_str += &String::from("]");
+    //web_sys::console::log_2(&"z_str: ".into(), &z_str.clone().into());
+
+
+    let proof_str = to_json(&proof).replace("\"", "\\\"");
+    let a_str = format!("{}", txr.notes[0].quantity.to_string());
+    let mut z_str = format!("{:02X?}", z.as_bytes()).replace(", ", "");
+    z_str.pop();
+    z_str.remove(0);
+
+    // put the whole EOS tx together
+    return String::from(String::from(
+    r#"{
+        "epk_s":"#) + &epk_s_str + &String::from(r#",
+        "ciphertext_s":"#) + &enc_sender_str + &String::from(r#",
+        "epk_r":"#) + &epk_r_str + &String::from(r#",
+        "ciphertext_r":"#) + &enc_receiver_str + &String::from(r#",
+        "proof":""#) + &proof_str + &String::from(r#"",
+        "a":""#) + &a_str + &String::from(r#"",
+        "z_a":"#) + &z_str + &String::from(r#",
+        "user":""#) + &eos_username + &String::from(r#""
+    }"#)).replace(" ", "").replace('\n', "");
 }
 
 // decrypt transaction
