@@ -329,6 +329,15 @@ pub struct EncryptedTransaction
     pub epk_r: [u8; 32],
     pub ciphertext_r: Vec<[u8; 16]>
 }
+// this is how JS receives the struct and passes it to this library to decrypt it
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EncryptedTransactionJS
+{
+    pub epk_s: String,
+    pub ciphertext_s: Vec<String>,
+    pub epk_r: String,
+    pub ciphertext_r: Vec<String>
+}
 
 // encrypt serializable object
 pub fn encrypt_serde_object<T: Serialize + DeserializeOwned>(key: &[u8; 32], obj: &T) -> Vec<[u8; 16]>
@@ -786,11 +795,9 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     let mut enc_sender_str = String::from("[");
     for block in enc_tx.ciphertext_s.iter()
     {
-        let mut block_str = format!("{:02X?}", block).replace(", ", "");
-        block_str.pop();
-        block_str.remove(0);
+        let block128u = u128::from_le_bytes(*block);
+        let block_str = format!("\"{}\",", block128u);
         enc_sender_str += &block_str;
-        enc_sender_str += &String::from(",");
     }
     if enc_tx.ciphertext_s.len() > 0
     {
@@ -802,11 +809,9 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     let mut enc_receiver_str = String::from("[");
     for block in enc_tx.ciphertext_r.iter()
     {
-        let mut block_str = format!("{:02X?}", block).replace(", ", "");
-        block_str.pop();
-        block_str.remove(0);
+        let block128u = u128::from_le_bytes(*block);
+        let block_str = format!("\"{}\",", block128u);
         enc_receiver_str += &block_str;
-        enc_receiver_str += &String::from(",");
     }
     if enc_tx.ciphertext_r.len() > 0
     {
@@ -825,15 +830,15 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     // put the whole EOS tx together
     return String::from(String::from(
     r#"{
-        "epk_s":"#) + &epk_s_str + &String::from(r#",
+        "epk_s":""#) + &epk_s_str + &String::from(r#"",
         "ciphertext_s":"#) + &enc_sender_str + &String::from(r#",
-        "epk_r":"#) + &epk_r_str + &String::from(r#",
+        "epk_r":""#) + &epk_r_str + &String::from(r#"",
         "ciphertext_r":"#) + &enc_receiver_str + &String::from(r#",
         "proof":""#) + &proof_str + &String::from(r#"",
         "a":""#) + &a_str + &String::from(r#"",
-        "z_a":"#) + &z_str + &String::from(r#",
+        "z_a":""#) + &z_str + &String::from(r#"",
         "user":""#) + &eos_username + &String::from(r#""
-    }"#)).replace(" ", "").replace('\n', "");
+        }"#)).replace("\n        ", "");
 }
 
 // decrypt transaction
@@ -844,7 +849,22 @@ pub fn decrypt_transaction(secret_key: &[u8], encrypted_transaction: String) -> 
 {
     // obtain parameters
     let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
-    let enc_tx: EncryptedTransaction = serde_json::from_str(&encrypted_transaction).unwrap();
+    let enc_tx_js: EncryptedTransactionJS = serde_json::from_str(&encrypted_transaction).unwrap();
+
+    // translate JS struct to library struct
+    let mut enc_tx: EncryptedTransaction = EncryptedTransaction { epk_s: [0; 32], ciphertext_s: Vec::new(), epk_r: [0; 32], ciphertext_r: Vec::new() };
+    hex::decode_to_slice(enc_tx_js.epk_s, &mut enc_tx.epk_s).expect("Decoding of 'enc_tx_js.epk_s' failed");
+    hex::decode_to_slice(enc_tx_js.epk_r, &mut enc_tx.epk_r).expect("Decoding of 'enc_tx_js.epk_r' failed");
+    for block_str in enc_tx_js.ciphertext_s.iter()
+    {
+        let block128u = u128::from_str_radix(block_str, 10).unwrap();
+        enc_tx.ciphertext_s.push(u128::to_le_bytes(block128u));
+    }
+    for block_str in enc_tx_js.ciphertext_r.iter()
+    {
+        let block128u = u128::from_str_radix(block_str, 10).unwrap();
+        enc_tx.ciphertext_r.push(u128::to_le_bytes(block128u));
+    }
 
     // the two parts of the transaction we try to decrypt
     let mut sender: Option<TxSender> = None;
