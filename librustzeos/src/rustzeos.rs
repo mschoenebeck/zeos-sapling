@@ -786,10 +786,10 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
 
     // create the EOS tx
     // see thezeostoken contract "mint" action for details about the parameter
-    let mut epk_s_str = format!("{:02X?}", enc_tx.epk_s).replace(", ", "");
+    let mut epk_s_str = format!("{:02x?}", enc_tx.epk_s).replace(", ", "");
     epk_s_str.pop();
     epk_s_str.remove(0);
-    let mut epk_r_str = format!("{:02X?}", enc_tx.epk_r).replace(", ", "");
+    let mut epk_r_str = format!("{:02x?}", enc_tx.epk_r).replace(", ", "");
     epk_r_str.pop();
     epk_r_str.remove(0);
     let mut enc_sender_str = String::from("[");
@@ -900,6 +900,39 @@ pub fn decrypt_transaction(secret_key: &[u8], encrypted_transaction: String) -> 
 
     return to_json(&tx);
 }
+
+// get note commitment
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub fn note_commitment(note_json: String, h_sk: &[u8]) -> String
+{
+    let h_sk_ = unsafe {&*(h_sk as *const [u8] as *const [u8; 32])};
+    let note: Note = serde_json::from_str(&note_json).unwrap();
+    
+    let mut z_n_str = format!("{:02x?}", note.commitment(*h_sk_).as_bytes()).replace(", ", "");
+    z_n_str.pop();
+    z_n_str.remove(0);
+    
+    return z_n_str;
+}
+
+// get note nullifier
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub fn note_nullifier(note_json: String, sk: &[u8]) -> String
+{
+    let sk_ = unsafe {&*(sk as *const [u8] as *const [u8; 32])};
+    let note: Note = serde_json::from_str(&note_json).unwrap();
+    
+    let mut n_n_str = format!("{:02x?}", note.nullifier(*sk_).as_bytes()).replace(", ", "");
+    n_n_str.pop();
+    n_n_str.remove(0);
+    
+    return n_n_str;
+}
+
 
 // test function
 #[no_mangle]
