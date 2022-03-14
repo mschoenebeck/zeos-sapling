@@ -743,25 +743,26 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     
     // parse addr and tx_r object
     let addr: Address = serde_json::from_str(&addr_json).unwrap();
-    let txr: TxReceiver = serde_json::from_str(&tx_r_json).unwrap();
+    let tx_r: TxReceiver = serde_json::from_str(&tx_r_json).unwrap();
 
     // create new random key pair to encrypt receiver part
     let esk_r = SecretKey::new();
     // create symmetric aes encryption key using DH
-    let receiver_enc_key = esk_r.diffie_hellman(&addr.pk);
+    let aes_key_r = esk_r.diffie_hellman(&addr.pk);
 
     // create encrypted tx
     let enc_tx = EncryptedTransaction{
         epk_s: [0; 32],
         ciphertext_s: Vec::new(),
         epk_r: esk_r.pk(),
-        ciphertext_r: encrypt_serde_object(&receiver_enc_key, &txr)
+        ciphertext_r: encrypt_serde_object(&aes_key_r, &tx_r)
     };
 
-    // initialize instance of Mint circuit with private input
-    let amount: u64 = txr.notes[0].amount().try_into().unwrap();
-    let symbol: u64 = txr.notes[0].symbol().value();
-    let rho: [u8; 32] = txr.notes[0].rho();
+    // create public inputs for this proof
+    // note commitment 'z' to note
+    let amount: u64 = tx_r.notes[0].amount().try_into().unwrap();
+    let symbol: u64 = tx_r.notes[0].symbol().value();
+    let rho: [u8; 32] = tx_r.notes[0].rho();
     let h_sk: [u8; 32] = addr.h_sk();
     let mut note = Vec::new();
     note.extend(amount.to_le_bytes());
@@ -774,6 +775,7 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
         .update(&note)
         .finalize();
 
+    // initialize instance of Mint circuit with private input
     let c = Mint {
         amount: Some(amount),
         symbol: Some(symbol),
@@ -785,13 +787,22 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     let proof = groth16::create_random_proof(c, &params, &mut OsRng).unwrap();
 
     // create the EOS tx
-    // see thezeostoken contract "mint" action for details about the parameter
+    // see thezeostoken contract "mint" action for details about the parameter:
+    // const checksum256& epk_s
+    // const vector<uint128_t>& ciphertext_s
+    // const checksum256& epk_r
+    // const vector<uint128_t>& ciphertext_r
+    // const string& proof
+    // const asset& a
+    // const checksum256& z_a
+    // const name& user
     let mut epk_s_str = format!("{:02x?}", enc_tx.epk_s).replace(", ", "");
     epk_s_str.pop();
     epk_s_str.remove(0);
     let mut epk_r_str = format!("{:02x?}", enc_tx.epk_r).replace(", ", "");
     epk_r_str.pop();
     epk_r_str.remove(0);
+
     let mut enc_sender_str = String::from("[");
     for block in enc_tx.ciphertext_s.iter()
     {
@@ -804,7 +815,6 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
         enc_sender_str.pop(); // remove last comma
     }
     enc_sender_str += &String::from("]");
-
 
     let mut enc_receiver_str = String::from("[");
     for block in enc_tx.ciphertext_r.iter()
@@ -820,9 +830,9 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     enc_receiver_str += &String::from("]");
     //web_sys::console::log_2(&"z_str: ".into(), &z_str.clone().into());
 
-
     let proof_str = to_json(&proof).replace("\"", "\\\"");
-    let a_str = format!("{}", txr.notes[0].quantity.to_string());
+
+    let a_str = format!("{}", tx_r.notes[0].quantity.to_string());
     let mut z_str = format!("{:02X?}", z.as_bytes()).replace(", ", "");
     z_str.pop();
     z_str.remove(0);
@@ -838,6 +848,211 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
         "a":""#) + &a_str + &String::from(r#"",
         "z_a":""#) + &z_str + &String::from(r#"",
         "user":""#) + &eos_username + &String::from(r#""
+        }"#)).replace("\n        ", "");
+}
+
+// generate transfer transaction
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub fn create_transfer_transaction(params_bytes: &[u8],
+                                   secret_key: &[u8],
+                                   tx_s_json: String,
+                                   tx_r_json: String,
+                                   spent_note_json: String,
+                                   auth_path_v_json: String,
+                                   auth_path_b_json: String) -> String
+{
+    // read Parameter file from byte array
+    let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();
+
+    // cast secret key
+    let sk: &SecretKey = unsafe {&*(secret_key as *const [u8] as *const SecretKey)};
+
+    // parse json objects
+    let mut tx_s: TxSender = serde_json::from_str(&tx_s_json).unwrap();
+    let tx_r: TxReceiver = serde_json::from_str(&tx_r_json).unwrap();
+    let a: Note = serde_json::from_str(&spent_note_json).unwrap();
+    let auth_path_v: Vec<[u8; 32]> = serde_json::from_str(&auth_path_v_json).unwrap();
+    let auth_path_b: Vec<bool> = serde_json::from_str(&auth_path_b_json).unwrap();
+    assert_eq!(auth_path_v.len(), auth_path_b.len());
+    assert_eq!(auth_path_v.len(), TREE_DEPTH);
+    let mut auth_path: [Option<([u8; 32], bool)>; TREE_DEPTH] = [None; TREE_DEPTH];
+    for i in 0..TREE_DEPTH
+    {
+        auth_path[i] = Some((auth_path_v[i], auth_path_b[i]));
+    }
+ 
+    // create new random key pairs to encrypt sender and receiver part
+    let esk_s = SecretKey::new();
+    let esk_r = SecretKey::new();
+    tx_s.esk_s = esk_s.sk();
+    tx_s.esk_r = esk_r.sk();
+    // create symmetric aes encryption key using DH
+    let aes_key_s = esk_s.diffie_hellman(&sk.pk());
+    let aes_key_r = esk_r.diffie_hellman(&tx_s.addr_r.pk);
+
+    // create encrypted tx
+    let enc_tx = EncryptedTransaction{
+        epk_s: esk_s.pk(),
+        ciphertext_s: encrypt_serde_object(&aes_key_s, &tx_s),
+        epk_r: esk_r.pk(),
+        ciphertext_r: encrypt_serde_object(&aes_key_r, &tx_r)
+    };
+    
+    // create public inputs for this proof
+    // nullifier 'nf_a' to note 'a'
+    let mut nf = Vec::new();
+    nf.extend(a.rho().clone());
+    nf.extend(sk.sk().clone());
+    let nf_a = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&nf)
+        .finalize();
+    // commitment 'z_b' to note 'tx_r.notes[0]'
+    let amount: u64 = tx_r.notes[0].amount().try_into().unwrap();
+    let symbol: u64 = tx_r.notes[0].symbol().value();
+    let rho: [u8; 32] = tx_r.notes[0].rho();
+    let h_sk: [u8; 32] = tx_s.addr_r.h_sk();
+    let mut note = Vec::new();
+    note.extend(amount.to_le_bytes());
+    note.extend(symbol.to_le_bytes());
+    note.extend(rho.clone());
+    note.extend(h_sk.clone());
+    let z_b = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&note)
+        .finalize();
+    // commitment 'z_c' to note 'tx_s.change'
+    let amount: u64 = tx_s.change.amount().try_into().unwrap();
+    let symbol: u64 = tx_s.change.symbol().value();
+    let rho: [u8; 32] = tx_s.change.rho();
+    let h_sk: [u8; 32] = sk.h_sk();
+    let mut note = Vec::new();
+    note.extend(amount.to_le_bytes());
+    note.extend(symbol.to_le_bytes());
+    note.extend(rho.clone());
+    note.extend(h_sk.clone());
+    let z_c = blake2s_simd_params::new()
+        .personal(&[0; 8])
+        .to_state()
+        .update(&note)
+        .finalize();
+    // merkle root 'root'
+    let mut root = a.commitment(sk.h_sk());
+    for i in 0..TREE_DEPTH
+    {
+        let mut image = Vec::new();
+        if auth_path_b[i]  // root is right
+        {
+            image.extend(auth_path_v[i].clone());
+            image.extend(root.as_bytes().clone());
+        }
+        else
+        {
+            image.extend(root.as_bytes().clone());
+            image.extend(auth_path_v[i].clone());
+        }
+        
+        root = blake2s_simd_params::new()
+            .personal(&[0; 8])
+            .to_state()
+            .update(&image)
+            .finalize();
+    }
+    //let root_debug_str = format!("{:02x?}", root.as_bytes());
+    //web_sys::console::log_2(&"root: ".into(), &root_debug_str.into());
+
+    // initialize instance of Transfer circuit with private input
+    let c = Transfer {
+        sk_a: Some(sk.sk()),
+        a: Some(a.amount().try_into().unwrap()),
+        b: Some(tx_r.notes[0].amount().try_into().unwrap()),
+        c: Some(tx_s.change.amount().try_into().unwrap()),
+        symbol: Some(a.symbol().value()),
+        rho_a: Some(a.rho()),
+        rho_b: Some(tx_r.notes[0].rho()),
+        rho_c: Some(tx_s.change.rho()),
+        h_sk_b: Some(tx_s.addr_r.h_sk),
+        auth_path: auth_path
+    };
+
+    // create proof
+    let proof = groth16::create_random_proof(c, &params, &mut OsRng).unwrap();
+
+    // create the EOS tx
+    // see thezeostoken contract "ztransfer" action for details about the parameter:
+    // const checksum256& epk_s
+    // const vector<uint128_t>& ciphertext_s
+    // const checksum256& epk_r
+    // const vector<uint128_t>& ciphertext_r
+    // const string& proof
+    // const checksum256& nf_a
+    // const checksum256& z_b
+    // const checksum256& z_c
+    // const checksum256& root
+    let mut epk_s_str = format!("{:02x?}", enc_tx.epk_s).replace(", ", "");
+    epk_s_str.pop();
+    epk_s_str.remove(0);
+    let mut epk_r_str = format!("{:02x?}", enc_tx.epk_r).replace(", ", "");
+    epk_r_str.pop();
+    epk_r_str.remove(0);
+    
+    let mut enc_sender_str = String::from("[");
+    for block in enc_tx.ciphertext_s.iter()
+    {
+        let block128u = u128::from_le_bytes(*block);
+        let block_str = format!("\"{}\",", block128u);
+        enc_sender_str += &block_str;
+    }
+    if enc_tx.ciphertext_s.len() > 0
+    {
+        enc_sender_str.pop(); // remove last comma
+    }
+    enc_sender_str += &String::from("]");
+
+    let mut enc_receiver_str = String::from("[");
+    for block in enc_tx.ciphertext_r.iter()
+    {
+        let block128u = u128::from_le_bytes(*block);
+        let block_str = format!("\"{}\",", block128u);
+        enc_receiver_str += &block_str;
+    }
+    if enc_tx.ciphertext_r.len() > 0
+    {
+        enc_receiver_str.pop(); // remove last comma
+    }
+    enc_receiver_str += &String::from("]");
+    
+    let proof_str = to_json(&proof).replace("\"", "\\\"");
+
+    let mut nf_a_str = format!("{:02X?}", nf_a.as_bytes()).replace(", ", "");
+    nf_a_str.pop();
+    nf_a_str.remove(0);
+    let mut z_b_str = format!("{:02X?}", z_b.as_bytes()).replace(", ", "");
+    z_b_str.pop();
+    z_b_str.remove(0);
+    let mut z_c_str = format!("{:02X?}", z_c.as_bytes()).replace(", ", "");
+    z_c_str.pop();
+    z_c_str.remove(0);
+    let mut root_str = format!("{:02X?}", root.as_bytes()).replace(", ", "");
+    root_str.pop();
+    root_str.remove(0);
+
+    // put the whole EOS tx together
+    return String::from(String::from(
+    r#"{
+        "epk_s":""#) + &epk_s_str + &String::from(r#"",
+        "ciphertext_s":"#) + &enc_sender_str + &String::from(r#",
+        "epk_r":""#) + &epk_r_str + &String::from(r#"",
+        "ciphertext_r":"#) + &enc_receiver_str + &String::from(r#",
+        "proof":""#) + &proof_str + &String::from(r#"",
+        "nf_a":""#) + &nf_a_str + &String::from(r#"",
+        "z_b":""#) + &z_b_str + &String::from(r#"",
+        "z_c":""#) + &z_c_str + &String::from(r#"",
+        "root":""#) + &root_str + &String::from(r#""
         }"#)).replace("\n        ", "");
 }
 
