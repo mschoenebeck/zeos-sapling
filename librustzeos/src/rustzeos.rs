@@ -736,7 +736,10 @@ pub fn create_key(seed: &[u8]) -> String
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 #[no_mangle]
-pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json: String, eos_username: String) -> String
+pub fn create_mint_transaction(params_bytes: &[u8],
+                               addr_json: String,
+                               tx_r_json: String,
+                               eos_username: String) -> String
 {
     // read Parameter file from byte array
     let params: groth16::Parameters<Bls12> = Parameters::read(params_bytes, false).unwrap();
@@ -750,9 +753,26 @@ pub fn create_mint_transaction(params_bytes: &[u8], addr_json: String, tx_r_json
     // create symmetric aes encryption key using DH
     let aes_key_r = esk_r.diffie_hellman(&addr.pk);
 
+    // epk_s contains the eos account name as a string in the lower 16 bytes and the quantity (Asset type) in the upper 16 bytes
+    let mut epk_s: [u8; 32] = [0; 32];
+    for (i, c) in eos_username.chars().enumerate()
+    {
+        let mut buf = [0; 2];
+        c.encode_utf8(&mut buf);
+        epk_s[i] = buf[0];
+    }
+    for i in 16..24
+    {
+        epk_s[i] = tx_r.notes[0].amount().to_le_bytes()[i-16];
+    }
+    for i in 24..32
+    {
+        epk_s[i] = tx_r.notes[0].symbol().value().to_le_bytes()[i-24];
+    }
+
     // create encrypted tx
     let enc_tx = EncryptedTransaction{
-        epk_s: [0; 32],
+        epk_s: epk_s,
         ciphertext_s: Vec::new(),
         epk_r: esk_r.pk(),
         ciphertext_r: encrypt_serde_object(&aes_key_r, &tx_r)
@@ -1095,11 +1115,28 @@ pub fn create_burn_transaction(params_bytes: &[u8],
     // create symmetric aes encryption key using DH
     let aes_key_s = esk_s.diffie_hellman(&sk.pk());
 
+    // epk_r contains the eos account name as a string in the lower 16 bytes and the quantity (Asset type) in the upper 16 bytes
+    let mut epk_r: [u8; 32] = [0; 32];
+    for (i, c) in eos_username.chars().enumerate()
+    {
+        let mut buf = [0; 2];
+        c.encode_utf8(&mut buf);
+        epk_r[i] = buf[0];
+    }
+    for i in 16..24
+    {
+        epk_r[i] = b.amount().to_le_bytes()[i-16];
+    }
+    for i in 24..32
+    {
+        epk_r[i] = b.symbol().value().to_le_bytes()[i-24];
+    }
+
     // create encrypted tx
     let enc_tx = EncryptedTransaction{
         epk_s: esk_s.pk(),
         ciphertext_s: encrypt_serde_object(&aes_key_s, &tx_s),
-        epk_r: [0; 32],
+        epk_r: epk_r,
         ciphertext_r: Vec::new()
     };
 
