@@ -307,6 +307,7 @@ pub struct TxReceiver
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TxSender
 {
+    pub notes: Vec<Note>,
     pub change: Note,
     pub esk_s: [u8; 32],    // viewing key which in combination of the senders public key is able to decrypt the whole tx. can be shared with others as proof of payment
     pub esk_r: [u8; 32],
@@ -879,7 +880,6 @@ pub fn create_ztransfer_transaction(params_bytes: &[u8],
                                     secret_key: &[u8],
                                     tx_s_json: String,
                                     tx_r_json: String,
-                                    spent_note_json: String,
                                     auth_path_v_json: String,
                                     auth_path_b_json: String) -> String
 {
@@ -892,7 +892,6 @@ pub fn create_ztransfer_transaction(params_bytes: &[u8],
     // parse json objects
     let mut tx_s: TxSender = serde_json::from_str(&tx_s_json).unwrap();
     let tx_r: TxReceiver = serde_json::from_str(&tx_r_json).unwrap();
-    let a: Note = serde_json::from_str(&spent_note_json).unwrap();
     let auth_path_v: Vec<[u8; 32]> = serde_json::from_str(&auth_path_v_json).unwrap();
     let auth_path_b: Vec<bool> = serde_json::from_str(&auth_path_b_json).unwrap();
     assert_eq!(auth_path_v.len(), auth_path_b.len());
@@ -922,6 +921,7 @@ pub fn create_ztransfer_transaction(params_bytes: &[u8],
     
     // create public inputs for this proof
     // nullifier 'nf_a' to note 'a'
+    let a = &tx_s.notes[0];
     let mut nf = Vec::new();
     nf.extend(a.rho().clone());
     nf.extend(sk.sk().clone());
@@ -1084,7 +1084,6 @@ pub fn create_burn_transaction(params_bytes: &[u8],
                                secret_key: &[u8],
                                tx_s_json: String,
                                quantity_json: String,
-                               spent_note_json: String,
                                auth_path_v_json: String,
                                auth_path_b_json: String,
                                eos_username: String) -> String
@@ -1098,7 +1097,6 @@ pub fn create_burn_transaction(params_bytes: &[u8],
     // parse json objects
     let mut tx_s: TxSender = serde_json::from_str(&tx_s_json).unwrap();
     let b: Asset = serde_json::from_str(&quantity_json).unwrap();
-    let a: Note = serde_json::from_str(&spent_note_json).unwrap();
     let auth_path_v: Vec<[u8; 32]> = serde_json::from_str(&auth_path_v_json).unwrap();
     let auth_path_b: Vec<bool> = serde_json::from_str(&auth_path_b_json).unwrap();
     assert_eq!(auth_path_v.len(), auth_path_b.len());
@@ -1142,6 +1140,7 @@ pub fn create_burn_transaction(params_bytes: &[u8],
 
     // create public inputs for this proof
     // nullifier 'nf_a' to note 'a'
+    let a = &tx_s.notes[0];
     let mut nf = Vec::new();
     nf.extend(a.rho().clone());
     nf.extend(sk.sk().clone());
