@@ -309,8 +309,8 @@ pub struct TxSender
 {
     pub notes: Vec<Note>,
     pub change: Note,
-    pub esk_s: [u8; 32],    // viewing key which in combination of the senders public key is able to decrypt the whole tx. can be shared with others as proof of payment
-    pub esk_r: [u8; 32],
+    pub esk_s: [u8; 32],    // [viewing key (sender) which in combination with the senders public key is able to decrypt the whole tx. can be shared with others as proof of payment]
+    pub esk_r: [u8; 32],    // viewing key (receiver) which in combination with the receivers public key is able to decrypt the receiver part of the tx. can be shared with others as proof of payment
     pub addr_r: Address
 }
 #[derive(Serialize, Deserialize, Debug)]

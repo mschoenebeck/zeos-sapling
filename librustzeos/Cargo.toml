@@ -9,7 +9,7 @@ edition = "2018"
 name = "rustzeos"
 path = "src/rustzeos.rs"
 #crate-type = ["staticlib"]     # this line causes an error if lib used in rust. it is needed to create FFI C lib
-crate-type = ["cdylib"]
+#crate-type = ["cdylib"]
 
 
 #[build]
