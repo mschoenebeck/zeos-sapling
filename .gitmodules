@@ -1,3 +1,0 @@
-[submodule "bellman"]
-	path = bellman
-	url = https://github.com/mschoenebeck/bellman

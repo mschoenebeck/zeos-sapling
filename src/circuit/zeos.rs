@@ -1,17 +1,11 @@
 
 use ff::PrimeField;
-use group::Curve;
 
 use bellman::{Circuit, ConstraintSystem, LinearCombination, SynthesisError};
 
 use bellman::gadgets::blake2s;
 use bellman::gadgets::boolean;
 use bellman::gadgets::multipack;
-use bellman::gadgets::num;
-use bellman::gadgets::Assignment;
-
-#[cfg(test)]
-use ff::PrimeFieldBits;
 
 pub const TREE_DEPTH: usize = 2;
 

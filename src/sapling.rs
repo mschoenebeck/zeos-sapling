@@ -1,7 +1,6 @@
 
 
 use std::convert::TryInto;
-use std::fmt::Write;
 
 use bellman::{
     groth16::{
@@ -9,10 +8,14 @@ use bellman::{
         VerifyingKey,
         Proof
     },
-    groth16, Circuit, ConstraintSystem, SynthesisError, multiexp::SourceBuilder,
+    groth16
 };
 use bls12_381::{Bls12};
-use zeos_proofs::circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
+//use zeos_proofs::circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
+pub mod circuit;
+use circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
+
+use rustzeos::groth16::json_str;
 
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
@@ -22,13 +25,13 @@ use x25519_dalek::{StaticSecret, PublicKey};
 
 use rand::rngs::OsRng;
 
-use aes::{Aes256, Block, ParBlocks};
+use aes::{Aes256, Block};
 use aes::cipher::{
-    BlockCipher, BlockEncrypt, BlockDecrypt, NewBlockCipher,
+    BlockEncrypt, BlockDecrypt, NewBlockCipher,
     generic_array::GenericArray,
 };
 
-use blake2s_simd::{Hash, blake2s as blake2s_simd, Params as blake2s_simd_params};
+use blake2s_simd::{Hash, Params as blake2s_simd_params};
 
 use wasm_bindgen::prelude::*;
 
@@ -851,7 +854,7 @@ pub fn create_mint_transaction(params_bytes: &[u8],
     enc_receiver_str += &String::from("]");
     //web_sys::console::log_2(&"z_str: ".into(), &z_str.clone().into());
 
-    let proof_str = to_json(&proof).replace("\"", "\\\"");
+    let proof_str = json_str(&proof).replace("\"", "\\\"");
 
     let a_str = format!("{}", tx_r.notes[0].quantity.to_string());
     let mut z_str = format!("{:02X?}", z.as_bytes()).replace(", ", "");
@@ -1046,7 +1049,7 @@ pub fn create_ztransfer_transaction(params_bytes: &[u8],
     }
     enc_receiver_str += &String::from("]");
     
-    let proof_str = to_json(&proof).replace("\"", "\\\"");
+    let proof_str = json_str(&proof).replace("\"", "\\\"");
 
     let mut nf_a_str = format!("{:02X?}", nf_a.as_bytes()).replace(", ", "");
     nf_a_str.pop();
@@ -1249,7 +1252,7 @@ pub fn create_burn_transaction(params_bytes: &[u8],
     }
     enc_receiver_str += &String::from("]");
     
-    let proof_str = to_json(&proof).replace("\"", "\\\"");
+    let proof_str = json_str(&proof).replace("\"", "\\\"");
 
     let mut nf_a_str = format!("{:02X?}", nf_a.as_bytes()).replace(", ", "");
     nf_a_str.pop();
