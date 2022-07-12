@@ -4,14 +4,12 @@ use std::convert::TryInto;
 
 use bellman::{
     groth16::{
-        Parameters,
-        VerifyingKey,
-        Proof
+        Parameters
     },
     groth16
 };
 use bls12_381::{Bls12};
-//use zeos_proofs::circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
+
 pub mod circuit;
 use circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
 
