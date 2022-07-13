@@ -1,4 +1,4 @@
-NAME="rustzeos"
+NAME="sapling"
 
 all: ./pkg/$NAME_bg.wasm
 
