@@ -513,8 +513,6 @@ dependencies = [
 [[package]]
 name = "halo2_proofs"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cff771b9a2445cd2545c9ef26d863c290fbb44ae440c825a20eb7156f67a949a"
 dependencies = [
  "blake2b_simd",
  "ff 0.12.0",
@@ -522,6 +520,7 @@ dependencies = [
  "pasta_curves",
  "rand_core 0.6.3",
  "rayon",
+ "serde",
  "tracing",
 ]
 
@@ -665,14 +664,13 @@ dependencies = [
 [[package]]
 name = "pasta_curves"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "369d7785168ad7ff0cbe467d968ca3e19a927d8536b11ef9c21b4e454b15ba42"
 dependencies = [
  "blake2b_simd",
  "ff 0.12.0",
  "group 0.12.0",
  "lazy_static",
  "rand 0.8.5",
+ "serde",
  "static_assertions",
  "subtle",
 ]
@@ -839,8 +837,11 @@ name = "rustzeos"
 version = "0.1.0"
 dependencies = [
  "bellman 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bincode",
  "blake2s_simd",
  "bls12_381",
+ "byteorder",
+ "getrandom 0.2.3",
  "halo2_proofs",
  "memuse",
  "pasta_curves",
