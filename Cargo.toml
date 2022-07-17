@@ -20,7 +20,7 @@ crate-type = ["cdylib"]
 #bellman = "0.10"    # those 2 are different! => stand alone
 bellman = { version = "0.10.0", path = "../bellman" }
 #zeos_proofs = { version = "0.1.0", path = "../zeos_proofs" }
-rustzeos = { path = "../rustzeos" }
+rustzeos = { version = "0.1.0", path = "../rustzeos" }
 #pairing = "0.14"
 #bincode = "1.3"
 #blake2b_simd = "0.5"
