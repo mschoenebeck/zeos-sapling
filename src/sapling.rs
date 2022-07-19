@@ -3,17 +3,15 @@
 use std::convert::TryInto;
 
 use bellman::{
-    groth16::{
-        Parameters
-    },
+    groth16::Parameters,
     groth16
 };
-use bls12_381::{Bls12};
+use bls12_381::Bls12;
 
 pub mod circuit;
 use circuit::zeos::{Mint, Transfer, Burn, TREE_DEPTH};
 
-use rustzeos::groth16::json_str;
+use rustzeos::groth16::{serialize_proof, bytes_to_hex_str};
 
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
@@ -651,7 +649,7 @@ pub fn create_mint_transaction(params_bytes: &[u8],
     enc_receiver_str += &String::from("]");
     //web_sys::console::log_2(&"z_str: ".into(), &z_str.clone().into());
 
-    let proof_str = json_str(&proof).replace("\"", "\\\"");
+    let proof_str = bytes_to_hex_str(&serialize_proof(&proof));
 
     let a_str = format!("{}", tx_r.notes[0].quantity.to_string());
     let mut z_str = format!("{:02X?}", z.as_bytes()).replace(", ", "");
@@ -846,7 +844,7 @@ pub fn create_ztransfer_transaction(params_bytes: &[u8],
     }
     enc_receiver_str += &String::from("]");
     
-    let proof_str = json_str(&proof).replace("\"", "\\\"");
+    let proof_str = bytes_to_hex_str(&serialize_proof(&proof));
 
     let mut nf_a_str = format!("{:02X?}", nf_a.as_bytes()).replace(", ", "");
     nf_a_str.pop();
@@ -1049,7 +1047,7 @@ pub fn create_burn_transaction(params_bytes: &[u8],
     }
     enc_receiver_str += &String::from("]");
     
-    let proof_str = json_str(&proof).replace("\"", "\\\"");
+    let proof_str = bytes_to_hex_str(&serialize_proof(&proof));
 
     let mut nf_a_str = format!("{:02X?}", nf_a.as_bytes()).replace(", ", "");
     nf_a_str.pop();
