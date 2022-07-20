@@ -63,7 +63,7 @@ It's open source. Do with it whatever you want.
 
 ## Acknowledgments
 
-Big thanks to EY Blockchain for their awesome whitepaper and, of course, to the Electric Coin Company for developing, documenting and maintaining this awesome zk-SNARK codebase for Zcash!
+Big thanks to EY Blockchain for their awesome whitepaper and, of course, to the Electric Coin Company for developing, documenting and maintaining this awesome open source codebase for zk-SNARKs!
 
 * [Nightfall Whitepaper](https://github.com/EYBlockchain/nightfall/blob/master/doc/whitepaper/nightfall-v1.pdf)
 * [Zcash Protocol Specification](https://zips.z.cash/protocol/protocol.pdf)
