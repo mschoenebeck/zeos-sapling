@@ -7,7 +7,7 @@ See also:
 - [JS Wallet (Sapling)](https://github.com/mschoenebeck/zeos-wallet/tree/sapling)
 
 ## Description
-This application was developed and deployed to the Kylin testnet as proof-of-concept for the ZEOS project. It is a simple and straight forward implementation of a protocol for untraceable transfers of fungible tokens on [EOSIO](https://eos.io/) blockchains. It is inspired by and almost exactly implemented as the [Nightfall](https://github.com/EYBlockchain/nightfall) protocol for private transactions on Ethereum based on zk-SNARK. The proving system utilized by this application is the original Groth16 implementation of Zcash Sapling (Check out the [ZEOS Verifier](https://github.com/mschoenebeck/zeos-verifier)). Since the proof verification is too expensive to be executed on chain the [DAPP Network's vCPU Service](https://liquidapps.io/vcpu) is utilized to offload the heavy computation to the DSP nodes. While this approach comes with a potential security trade-off because of no on-chain proof verification it has the benefit of great scalability and incredibly low transaction costs. The JS wallet which is the UI for this application can be used together with the [Anchor Wallet](https://greymass.com/en/anchor/).
+This application was developed and deployed to the Kylin testnet as proof-of-concept for the ZEOS project. It is a simple and straight forward implementation of a protocol for untraceable transfers of fungible tokens on [EOSIO](https://eos.io/) blockchains. It is inspired by and almost exactly implemented as the [Nightfall](https://github.com/EYBlockchain/nightfall) protocol for private transactions on Ethereum based on zk-SNARK.
 
 ## Getting Started
 
