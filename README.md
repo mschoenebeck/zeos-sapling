@@ -11,7 +11,7 @@ This application was developed and deployed to the Kylin testnet as proof-of-con
 
 ## Getting Started
 
-To setup the full workspace clone the dependencies ([rustzeos](https://github.com/mschoenebeck/rustzeos) and [bellman](https://github.com/mschoenebeck/bellman)), the smart contract and the JS wallet as well:
+To setup the full workspace clone the dependencies [rustzeos](https://github.com/mschoenebeck/rustzeos), [bellman](https://github.com/mschoenebeck/bellman), the smart contract and the JS wallet as well:
 
 ```
 mkdir zeos
@@ -51,7 +51,10 @@ make install
 
 ### Dependencies
 
-- The [Rust Toolchain](https://www.rust-lang.org/tools/install)
+- [Rust Toolchain](https://www.rust-lang.org/tools/install)
+
+## Help
+If you need help join us on [Telegram](https://t.me/ZeosOnEos).
 
 ## Authors
 
