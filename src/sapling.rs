@@ -1189,21 +1189,5 @@ pub fn greet(name: &str) {
 #[cfg(test)]
 mod test
 {
-    #[test]
-    fn conv_params()
-    {
-        use super::bytes_to_hex_str;
-        use bellman::groth16::Parameters;
-        use bls12_381::Bls12;
-        use std::fs::File;
-        let file = File::open("/home/mschoenebeck/eclipse-workspace-cpp/zeos/zeos/zeos-wallet/burn.params").unwrap();
-        let params: Parameters<Bls12> = Parameters::read(file, false).unwrap();
-        let mut arr = Vec::<u8>::new();
-        if params.vk.write(&mut arr).is_err()
-        {
-            println!("ERROR");
-        }
 
-        println!("{:?}", bytes_to_hex_str(&arr));
-    }
 }
